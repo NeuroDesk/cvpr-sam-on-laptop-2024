@@ -1,22 +1,16 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-from functools import partial
-from pathlib import Path
-import urllib.request
+
 import torch
 
-from .modeling import (
-    ImageEncoderViT,
-    MaskDecoder,
-    PromptEncoder,
-    Sam,
-    TwoWayTransformer,
-)
+from functools import partial
+import torch.nn as nn
 
+from .modeling import ImageEncoderViT, MaskDecoder, PromptEncoder, Sam, TwoWayTransformer
+from tiny_vit_sam import TinyViT
 
 def build_sam_vit_h(checkpoint=None):
     return _build_sam(
@@ -50,12 +44,127 @@ def build_sam_vit_b(checkpoint=None):
         checkpoint=checkpoint,
     )
 
+class MedSAM_Lite(nn.Module):
+    def __init__(
+            self, 
+            image_encoder, 
+            mask_decoder,
+            prompt_encoder
+        ):
+        super().__init__()
+        self.image_encoder = image_encoder
+        self.mask_decoder = mask_decoder
+        self.prompt_encoder = prompt_encoder
+
+    def forward(self, image, box_np):
+        image_embedding = self.image_encoder(image) # (B, 256, 64, 64)
+        # do not compute gradients for prompt encoder
+        with torch.no_grad():
+            box_torch = torch.as_tensor(box_np, dtype=torch.float32, device=image.device)
+            if len(box_torch.shape) == 2:
+                box_torch = box_torch[:, None, :] # (B, 1, 4)
+
+        sparse_embeddings, dense_embeddings = self.prompt_encoder(
+            points=None,
+            boxes=box_np,
+            masks=None,
+        )
+        low_res_masks, iou_predictions = self.mask_decoder(
+            image_embeddings=image_embedding, # (B, 256, 64, 64)
+            image_pe=self.prompt_encoder.get_dense_pe(), # (1, 256, 64, 64)
+            sparse_prompt_embeddings=sparse_embeddings, # (B, 2, 256)
+            dense_prompt_embeddings=dense_embeddings, # (B, 256, 64, 64)
+            multimask_output=False,
+          ) # (B, 1, 256, 256)
+
+        return low_res_masks
+
+    @torch.no_grad()
+    def postprocess_masks(self, masks, new_size, original_size):
+        """
+        Do cropping and resizing
+
+        Parameters
+        ----------
+        masks : torch.Tensor
+            masks predicted by the model
+        new_size : tuple
+            the shape of the image after resizing to the longest side of 256
+        original_size : tuple
+            the original shape of the image
+
+        Returns
+        -------
+        torch.Tensor
+            the upsampled mask to the original size
+        """
+        # Crop
+        masks = masks[..., :new_size[0], :new_size[1]]
+        # Resize
+        masks = F.interpolate(
+            masks,
+            size=(original_size[0], original_size[1]),
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        return masks
+
+def build_sam_vit_t(checkpoint=None):
+    prompt_embed_dim = 256
+    image_size = 1024
+    vit_patch_size = 16
+    image_embedding_size = image_size // vit_patch_size # 64
+    mobile_sam = MedSAM_Lite(
+            image_encoder=TinyViT(img_size=256, in_chans=3, 
+                embed_dims=[64, 128, 160, 320],
+                depths=[2, 2, 6, 2],
+                num_heads=[2, 4, 5, 10],
+                window_sizes=[7, 7, 14, 7],
+                mlp_ratio=4.,
+                drop_rate=0.,
+                drop_path_rate=0.0,
+                use_checkpoint=False,
+                mbconv_expand_ratio=4.0,
+                local_conv_size=3,
+                layer_lr_decay=0.8
+            ),
+            prompt_encoder=PromptEncoder(
+            embed_dim=prompt_embed_dim,
+            image_embedding_size=(image_embedding_size, image_embedding_size),
+            input_image_size=(256, 256),
+            mask_in_chans=16,
+            ),
+            mask_decoder=MaskDecoder(
+                    num_multimask_outputs=3,
+                    transformer=TwoWayTransformer(
+                    depth=2,
+                    embedding_dim=prompt_embed_dim,
+                    mlp_dim=2048,
+                    num_heads=8,
+                ),
+                transformer_dim=prompt_embed_dim,
+                iou_head_depth=3,
+                iou_head_hidden_dim=256,
+            )
+            # pixel_mean=[123.675, 116.28, 103.53],
+            # pixel_std=[58.395, 57.12, 57.375],
+        )
+
+    mobile_sam.eval()
+    if checkpoint is not None:
+        with open(checkpoint, "rb") as f:
+            state_dict = torch.load(f)
+        mobile_sam.load_state_dict(state_dict)
+    return mobile_sam
+
 
 sam_model_registry = {
     "default": build_sam_vit_h,
     "vit_h": build_sam_vit_h,
     "vit_l": build_sam_vit_l,
     "vit_b": build_sam_vit_b,
+    "vit_t": build_sam_vit_t,
 }
 
 
@@ -70,7 +179,7 @@ def _build_sam(
     image_size = 1024
     vit_patch_size = 16
     image_embedding_size = image_size // vit_patch_size
-    sam = Sam(
+    sam = MedSAM_Lite(
         image_encoder=ImageEncoderViT(
             depth=encoder_depth,
             embed_dim=encoder_embed_dim,
@@ -103,44 +212,13 @@ def _build_sam(
             iou_head_depth=3,
             iou_head_hidden_dim=256,
         ),
-        pixel_mean=[123.675, 116.28, 103.53],
-        pixel_std=[58.395, 57.12, 57.375],
+        # pixel_mean=[123.675, 116.28, 103.53],
+        # pixel_std=[58.395, 57.12, 57.375],
     )
     sam.eval()
-    checkpoint = Path(checkpoint)
-    if checkpoint.name == "sam_vit_b_01ec64.pth" and not checkpoint.exists():
-        cmd = input("Download sam_vit_b_01ec64.pth from facebook AI? [y]/n: ")
-        if len(cmd) == 0 or cmd.lower() == "y":
-            checkpoint.parent.mkdir(parents=True, exist_ok=True)
-            print("Downloading SAM ViT-B checkpoint...")
-            urllib.request.urlretrieve(
-                "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
-                checkpoint,
-            )
-            print(checkpoint.name, " is downloaded!")
-    elif checkpoint.name == "sam_vit_h_4b8939.pth" and not checkpoint.exists():
-        cmd = input("Download sam_vit_h_4b8939.pth from facebook AI? [y]/n: ")
-        if len(cmd) == 0 or cmd.lower() == "y":
-            checkpoint.parent.mkdir(parents=True, exist_ok=True)
-            print("Downloading SAM ViT-H checkpoint...")
-            urllib.request.urlretrieve(
-                "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
-                checkpoint,
-            )
-            print(checkpoint.name, " is downloaded!")
-    elif checkpoint.name == "sam_vit_l_0b3195.pth" and not checkpoint.exists():
-        cmd = input("Download sam_vit_l_0b3195.pth from facebook AI? [y]/n: ")
-        if len(cmd) == 0 or cmd.lower() == "y":
-            checkpoint.parent.mkdir(parents=True, exist_ok=True)
-            print("Downloading SAM ViT-L checkpoint...")
-            urllib.request.urlretrieve(
-                "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
-                checkpoint,
-            )
-            print(checkpoint.name, " is downloaded!")
-
     if checkpoint is not None:
         with open(checkpoint, "rb") as f:
             state_dict = torch.load(f)
         sam.load_state_dict(state_dict)
     return sam
+

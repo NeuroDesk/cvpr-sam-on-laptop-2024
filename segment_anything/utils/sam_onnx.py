@@ -11,8 +11,8 @@ from torch.nn import functional as F
 
 from typing import Tuple
 
-from ..modeling import Sam
-from .amg import calculate_stability_score
+from segment_anything.modeling import Sam
+from segment_anything.utils.amg import calculate_stability_score
 
 
 class SamOnnxModel(nn.Module):
