@@ -319,7 +319,7 @@ def medsam_inference(medsam_model, img_embed, box_256, new_size, original_size):
 
     return medsam_seg, iou
 
-def onnx_decoder_inference(image_embedding_slice, input_points, input_box):
+def onnx_decoder_inference(image_embedding_slice, input_points, input_box, original_size):
     # decoder_session = onnxruntime.InferenceSession(decoder_path, providers=['CPUExecutionProvider'])
 
     if len(input_points)>0:
@@ -331,33 +331,37 @@ def onnx_decoder_inference(image_embedding_slice, input_points, input_box):
     else:
         onnx_box_coords = input_box.reshape(2, 2)
         onnx_box_labels = np.array([2,3])
-
-        onnx_coord = np.concatenate([input_points[0], onnx_box_coords], axis=0)[None, :, :]
-        onnx_label = np.concatenate([input_label, onnx_box_labels], axis=0)[None, :].astype(np.float32)
+        if len(input_points) == 0:
+            onnx_coord = onnx_box_coords[None, :, :].astype(np.float32)
+            onnx_label = onnx_box_labels[None, :].astype(np.float32)
+        else:
+            onnx_coord = np.concatenate([input_points, onnx_box_coords], axis=0)[None, :, :].astype(np.float32)
+            onnx_label = np.concatenate([input_label, onnx_box_labels], axis=0)[None, :].astype(np.float32)
 
     # onnx_coord = transform.apply_coords(onnx_coord, [stacked_img.shape[0], stacked_img.shape[1]]).astype(np.float32)
     onnx_mask_input = np.zeros((1, 1, 256, 256), dtype=np.float32)
     onnx_has_mask_input = np.zeros(1, dtype=np.float32)
-    
+    print("image_embedding_slice type", image_embedding_slice.type())
     decoder_inputs = {
         "image_embeddings": np.array(image_embedding_slice),
         "point_coords": onnx_coord,
         "point_labels": onnx_label,
         "mask_input": onnx_mask_input,
         "has_mask_input": onnx_has_mask_input,
-        "orig_im_size": np.array([214, 153], dtype=np.float32)
+        "orig_im_size": np.array(original_size, dtype=np.float32)
     }
-    start_time = time.time()
+    start_time = time()
 
     masks, scores, low_res_logits = decoder_session.run(None, decoder_inputs)
-    runtime = time.time() - start_time
+    runtime = time() - start_time
     print("ONNX Runtime: ", runtime)
     # if ori_mask:
-    #     medsam_seg_prob = torch.sigmoid(torch.as_tensor(low_res_logits, device="cpu"))
-    #     mask = (medsam_seg_prob.cpu().numpy().squeeze() > 0.5).astype(np.uint8)
+    medsam_seg_prob = torch.sigmoid(torch.as_tensor(low_res_logits, device="cpu"))
+    mask = (medsam_seg_prob.cpu().numpy().squeeze() > 0.5).astype(np.uint8)
+    print("mask", mask.shape, mask.dtype)
     # else:
-    mask = (masks > 0).astype(np.uint8)
-    return mask[:1,:,:], scores
+        # mask = (masks > 0).astype(np.uint8)
+    return mask[:,:], scores
 
 medsam_lite_image_encoder = TinyViT(
     img_size=256,
@@ -400,7 +404,7 @@ medsam_lite_mask_decoder = MaskDecoder(
         iou_head_depth=3,
         iou_head_hidden_dim=256,
 )
-decoder_onnx_path = "/home/thuy/repo/MedSAM/work_dir/LiteMedSAM/lite_medsam.onnx"
+decoder_onnx_path = "/home/thuy/repo/MedSAM/work_dir/LiteMedSAM/lite_medsam_singlemask.onnx"
 decoder_session = onnxruntime.InferenceSession(decoder_onnx_path, providers=['CPUExecutionProvider'])
 
 medsam_lite_model = MedSAM_Lite(
@@ -438,7 +442,8 @@ def MedSAM_infer_npz_2D(img_npz_file):
         box256 = resize_box_to_256(box, original_size=(H, W))
         box256 = box256[None, ...] # (1, 4)
         # medsam_mask, iou_pred = medsam_inference(medsam_lite_model, image_embedding, box256, (newh, neww), (H, W))
-        medsam_mask, iou_pred = onnx_decoder_inference(image_embedding, input_points=[], input_box=box256)
+        medsam_mask, iou_pred = onnx_decoder_inference(image_embedding, input_points=[], input_box=box256, original_size=[H, W])
+        print("medsam_mask", medsam_mask.shape, medsam_mask.dtype, segs.shape)
         segs[medsam_mask>0] = idx
         # print(f'{npz_name}, box: {box}, predicted iou: {np.round(iou_pred.item(), 4)}')
    
@@ -518,7 +523,7 @@ def MedSAM_infer_npz_3D(img_npz_file):
                 else:
                     box_256 = resize_box_to_256(mid_slice_bbox_2d, original_size=(H, W))
             # img_2d_seg, iou_pred = medsam_inference(medsam_lite_model, image_embedding, box_256, [new_H, new_W], [H, W])
-            img_2d_seg, iou_pred = onnx_decoder_inference(image_embedding, input_points=[], input_box=box_256)
+            img_2d_seg, iou_pred = onnx_decoder_inference(image_embedding, input_points=[], input_box=box_256, original_size=[H, W])
             
             segs_3d_temp[z, img_2d_seg>0] = idx
         
@@ -554,7 +559,9 @@ def MedSAM_infer_npz_3D(img_npz_file):
             else:
                 scale_256 = 256 / max(H, W)
                 box_256 = mid_slice_bbox_2d * scale_256
-            img_2d_seg, iou_pred = medsam_inference(medsam_lite_model, image_embedding, box_256, [new_H, new_W], [H, W])
+            # img_2d_seg, iou_pred = medsam_inference(medsam_lite_model, image_embedding, box_256, [new_H, new_W], [H, W])
+            img_2d_seg, iou_pred = onnx_decoder_inference(image_embedding, input_points=[], input_box=box_256, original_size=[H, W])
+            
             segs_3d_temp[z, img_2d_seg>0] = idx
         segs[segs_3d_temp>0] = idx
     np.savez_compressed(
