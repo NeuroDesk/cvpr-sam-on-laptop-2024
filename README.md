@@ -1,4 +1,31 @@
-# LiteMedSAM
+# [cvpr-sam-on-laptop-2024](https://www.codabench.org/competitions/1847/#/pages-tab)
+
+## Goal:  
+Lightweight bounding box-based segmentation model 
+
+## Evaluation: 
+Segmentation accuracy metrics: 
+- Dice Similarity Coefficient (DSC) 
+- Normalized Surface Distance (NSD) 
+
+Segmentation efficiency metrics: 
+- Running time (s) 
+ 
+
+## Method:  
+Pretrained models and publicly available datasets (registered before April 15, 2024) 
+- Pretrain Models other than SAM: https://paperswithcode.com/sota/interactive-segmentation-on-grabcut?p=reviving-iterative-training-with-mask 
+- Public Dataset:  ?
+
+Hardware specs: 
+- CPU: Intel® Xeon(R) W-2133 @ 3.60GHz RAM: 8G 
+- Docker version 20.10.13 
+
+ ## Challeng rule agreement consent
+ https://drive.google.com/file/d/1XnrKAntAwZo3neEEMNBrKU0h4udoN64h/view
+
+
+## LiteMedSAM
 
 A lightweight version of MedSAM for fast training and inference. The model was trained with the following two states:
 
@@ -6,7 +33,7 @@ A lightweight version of MedSAM for fast training and inference. The model was t
 - State 2. Replace the MedSAM image encoder `ViT` with `TinyViT` and fine-tune the whole pipeline
 
 
-## Installation
+### Installation
 
 The codebase is tested with: `Ubuntu 20.04` | Python `3.10` | `CUDA 11.8` | `Pytorch 2.1.2`
 
@@ -16,9 +43,9 @@ The codebase is tested with: `Ubuntu 20.04` | Python `3.10` | `CUDA 11.8` | `Pyt
 4. Enter the MedSAM folder `cd MedSAM` and run `pip install -e .`
 
 
-## Quick tutorial on making submissions to CVPR 2024 MedSAM on Laptop Challenge
+### Quick tutorial on making submissions to CVPR 2024 MedSAM on Laptop Challenge
 
-### Sanity test
+#### Sanity test
 
 - Download the LiteMedSAM checkpoint here and put it in `work_dir/LiteMedSAM`.
 - Download the demo data [here](https://drive.google.com/drive/folders/1t3Rs9QbfGSEv2fIFlk8vi7jc0SclD1cq?usp=sharing)
@@ -29,7 +56,7 @@ python CVPR24_LiteMedSAM_infer.py -i test_demo/imgs/ -o test_demo/segs
 ```
 
 
-### Build Docker
+#### Build Docker
 
 ```bash
 docker build -f Dockerfile -t litemedsam .
@@ -51,16 +78,16 @@ Save docker
 docker save litemedsam | gzip -c > litemedsam.tar.gz
 ```
 
-### Compute Metrics
+#### Compute Metrics
 
 ```bash
 python evaluation/compute_metrics.py -s test_demo/litemedsam-seg -g test_demo/gts -csv_dir ./metrics.csv
 ```
 
 
-## Model Training
+### Model Training
 
-### Data preprocessing
+#### Data preprocessing
 1. Download the Lite-MedSAM [checkpoint](https://drive.google.com/file/d/18Zed-TUTsmr2zc5CHUWd5Tu13nb6vq6z/view?usp=sharing) and put it under the current directory.
 2. Download the [demo dataset](https://zenodo.org/records/7860267). This tutorial assumes it is unzipped it to `data/FLARE22Train/`.
 3. Run the pre-processing script to convert the dataset to `npz` format:
@@ -90,12 +117,12 @@ python npz_to_npy.py \
     -num_workers 4 ## number of workers for conversion in parallel
 ```
 
-### Fine-tune pretrained Lite-MedSAM
+#### Fine-tune pretrained Lite-MedSAM
 
 > The training pipeline requires about 10GB GPU memory with a batch size of 4
 
 
-#### Single GPU
+##### Single GPU
 
 To train Lite-MedSAM on a single GPU, run:
 ```bash
@@ -121,7 +148,7 @@ python train_one_gpu.py \
 
 For additional command line arguments, see `python train_one_gpu.py -h`.
 
-#### Multi-GPU
+##### Multi-GPU
 To fine-tune Lite-MedSAM on multiple GPUs, run:
 ```bash
 python train_multi_gpus.py \
@@ -142,7 +169,7 @@ the script will automatically find the latest checkpoint in the work directory. 
 
 
 
-## Inference (sanity test)
+### Inference (sanity test)
 The inference script assumes the testing data have been converted to `npz` format.
 To run inference on the 3D CT FLARE22 dataset, run:
 
@@ -162,13 +189,13 @@ For additional command line arguments, see `python inference_3D.py -h`.
 
 We also provide a script to run inference on the 2D images `inference_2D.py`, whose usage is the same as the 3D script.
 
-## Frequently Asked Questions (FAQ)
-### What is the difference between the preprocessed npz and npy data?
+### Frequently Asked Questions (FAQ)
+#### What is the difference between the preprocessed npz and npy data?
 * The `npz` format is used to store both 2D and 3D images (focusing on the ROI), along with their corresponding ground truth masks. In the case of 3D images, spacings are also included. All these data elements are compactly packed into a single `npz` file. This format is primarily used for distributing our training and validation datasets. Notably, for the validation dataset, bounding boxes are provided in place of ground truth label masks.
 
 * In contrast, the `npy` format stores each 2D image or individual slice of a 3D image along with its label mask in separate files. This format is utilized when loading data for training purposes.
 
-### I'm having trouble loading my trained model's checkpoint for inference. What should I do?
+#### I'm having trouble loading my trained model's checkpoint for inference. What should I do?
 If you encounter difficulties loading a trained model's checkpoint for inference, we recommend users first try using the `extract_weights.py` script located under `MedSAM/utils/`. This script is for extracting weights from your existing checkpoint and save them into a new checkpoint file. 
 
 To use this script, execute the following command in your terminal:
@@ -180,6 +207,6 @@ python extract_weights.py \
 ```
 Replace `<YOUR_CHECKPOINT_PATH>` with the path to your saved trained model checkpoint, and `<NEW_CHECKPOINT_PATH>` with the desired path for the new checkpoint file. Once you have executed this command and created the new checkpoint, it should be ready for use in inference tasks.
 
-## Acknowledgements
+### Acknowledgements
 We thank the authors of [MobileSAM](https://github.com/ChaoningZhang/MobileSAM) and [TinyViT](https://github.com/microsoft/Cream/tree/main/TinyViT) for making their source code publicly available.
 
