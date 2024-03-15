@@ -12,6 +12,8 @@ from segment_anything.utils.sam_onnx import SamOnnxModel
 
 import argparse
 import warnings
+import subprocess
+import os
 
 try:
     import onnxruntime  # type: ignore
@@ -36,7 +38,7 @@ parser.add_argument(
     "--model-type",
     type=str,
     required=True,
-    help="In ['default', 'vit_h', 'vit_l', 'vit_b']. Which type of SAM model to export.",
+    help="In ['default', 'vit_h', 'vit_l', 'vit_b', 'vit_t']. Which type of SAM model to export.",
 )
 
 parser.add_argument(
@@ -94,6 +96,10 @@ parser.add_argument(
     ),
 )
 
+def optimize(onnx_model_path, optimized_model_path):
+    command = "python -m onnxoptimizer " + onnx_model_path + " " + optimized_model_path
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+    process.wait()
 
 def run_export(
     model_type: str,
@@ -185,6 +191,7 @@ if __name__ == "__main__":
         use_stability_score=args.use_stability_score,
         return_extra_metrics=args.return_extra_metrics,
     )
+    optimize(args.output, args.output.replace(".onnx", "_optimized.onnx"))
 
     if args.quantize_out is not None:
         assert onnxruntime_exists, "onnxruntime is required to quantize the model."
