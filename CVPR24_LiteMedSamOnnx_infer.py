@@ -402,8 +402,13 @@ medsam_lite_mask_decoder = MaskDecoder(
         iou_head_depth=3,
         iou_head_hidden_dim=256,
 )
-decoder_onnx_path = "/data/Projects/MedSAM/work_dir/LiteMedSAM/lite_medsam.onnx"
-decoder_session = onnxruntime.InferenceSession(decoder_onnx_path, providers=['CPUExecutionProvider'])
+decoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_optimized.onnx"
+options = onnxruntime.SessionOptions()
+options.enable_profiling=True
+options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+options.intra_op_num_threads = 2
+options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
+decoder_session = onnxruntime.InferenceSession(decoder_onnx_path, sess_options=options, providers=['CPUExecutionProvider'])
 
 medsam_lite_model = MedSAM_Lite(
     image_encoder = medsam_lite_image_encoder,
