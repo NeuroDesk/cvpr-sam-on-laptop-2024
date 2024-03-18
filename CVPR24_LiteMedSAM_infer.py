@@ -375,6 +375,7 @@ def MedSAM_infer_npz_2D(img_npz_file):
     npz_name = basename(img_npz_file)
     npz_data = np.load(img_npz_file, 'r', allow_pickle=True) # (H, W, 3)
     img_3c = npz_data['imgs'] # (H, W, 3)
+    print(f'input data shape: {img_3c.shape}')
     assert np.max(img_3c)<256, f'input data should be in range [0, 255], but got {np.unique(img_3c)}'
     H, W = img_3c.shape[:2]
     boxes = npz_data['boxes']
@@ -428,6 +429,7 @@ def MedSAM_infer_npz_3D(img_npz_file):
     npz_name = basename(img_npz_file)
     npz_data = np.load(img_npz_file, 'r', allow_pickle=True)
     img_3D = npz_data['imgs'] # (D, H, W)
+    print(f'input data shape: {img_3D.shape}')
     spacing = npz_data['spacing'] # not used in this demo because it treats each slice independently
     segs = np.zeros_like(img_3D, dtype=np.uint8) 
     boxes_3D = npz_data['boxes'] # [[x_min, y_min, z_min, x_max, y_max, z_max]]
