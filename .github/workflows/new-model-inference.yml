@@ -1,0 +1,73 @@
+name: Check for new model inference
+
+on:
+  push:
+    paths:
+      - "**/**/*.onnx"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  get-models:
+    runs-on: ubuntu-22.04
+    outputs:
+      model_list: ${{ steps.list_changed_models.outputs.model_list }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Find all models with changes
+        id: find_changed_models
+        uses: tj-actions/changed-files@v38.1.0
+        with:
+          path: "./work_dir"
+          files: "**/*.onnx"
+          dir_names_exclude_current_dir: "true"
+      - name: Filter down to changed models
+        id: list_changed_models
+        run: |
+          echo ${{ steps.find_changed_models.outputs.all_changed_and_modified_files }}
+          changed_models=$(echo "${{ steps.find_changed_models.outputs.all_changed_and_modified_files }}")
+
+          model_list='['
+          for MODEL in $(echo "${changed_models}"); do
+            model_list+="\"${MODEL}\","
+          done
+          model_list=$(sed '$s/,$//' <<< $model_list)
+          model_list+=']'
+          echo "model_list=${model_list}"
+          echo "model_list=${model_list}" >> $GITHUB_OUTPUT
+
+  infer_new_model:
+    needs: [get-models]
+    if: ${{ needs.get-models.outputs.model_list != '[]' }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        models: ${{ fromJson(needs.get-models.outputs.model_list) }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up environment and data from osf
+        env:
+          OSF_TOKEN: ${{ secrets.OSF_TOKEN }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install python3.10 python3.10-venv python-is-python3 -y
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -e .
+
+          osf --project u8tny fetch test_demo.tar
+          tar xf test_demo.tar
+          rm test_demo.tar
+
+      - name: Run inference ${{ matrix.models }}
+        shell: bash
+        run: |
+          python CVPR24_LiteMedSamOnnx_infer.py -i test_demo/imgs/ -o test_demo/segs
+
+      - name: Evaluate accuracy and efficiency
+        run: |
+          python evaluation/compute_metrics.py -s test_demo/segs -g test_demo/gts -csv_dir ./metrics.csv
