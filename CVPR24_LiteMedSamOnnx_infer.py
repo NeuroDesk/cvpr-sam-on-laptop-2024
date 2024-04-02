@@ -319,6 +319,7 @@ def medsam_inference(medsam_model, img_embed, box_256, new_size, original_size):
 
     return medsam_seg, iou
 
+@torch.no_grad()
 def onnx_decoder_inference(medsam_model, image_embedding_slice, input_points, input_box, new_size, original_size):
     # decoder_session = onnxruntime.InferenceSession(decoder_path, providers=['CPUExecutionProvider'])
 
@@ -402,12 +403,15 @@ medsam_lite_mask_decoder = MaskDecoder(
         iou_head_depth=3,
         iou_head_hidden_dim=256,
 )
+encoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_encoder_quant.quant.onnx"
 decoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_optimized.onnx"
 options = onnxruntime.SessionOptions()
-options.enable_profiling=True
 options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
 options.intra_op_num_threads = 2
-options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
+options.enable_mem_pattern = False
+options.enable_cpu_mem_arena = False
+options.enable_mem_reuse = False
+encoder_session = onnxruntime.InferenceSession(encoder_onnx_path, sess_options=options, providers=['CPUExecutionProvider'])
 decoder_session = onnxruntime.InferenceSession(decoder_onnx_path, sess_options=options, providers=['CPUExecutionProvider'])
 
 medsam_lite_model = MedSAM_Lite(
@@ -439,7 +443,8 @@ def MedSAM_infer_npz_2D(img_npz_file):
     img_256_padded = pad_image(img_256_norm, 256)
     img_256_tensor = torch.tensor(img_256_padded).float().permute(2, 0, 1).unsqueeze(0).to(device)
     with torch.no_grad():
-        image_embedding = medsam_lite_model.image_encoder(img_256_tensor)
+        image_embedding = encoder_session.run(None, {'input_image': img_256_tensor.cpu().numpy()})[0]
+        # image_embedding = medsam_lite_model.image_encoder(img_256_tensor)
 
     for idx, box in enumerate(boxes, start=1):
         box256 = resize_box_to_256(box, original_size=(H, W))
@@ -514,7 +519,8 @@ def MedSAM_infer_npz_3D(img_npz_file):
             img_256_tensor = torch.tensor(img_256).float().permute(2, 0, 1).unsqueeze(0).to(device)
             # get the image embedding
             with torch.no_grad():
-                image_embedding = medsam_lite_model.image_encoder(img_256_tensor) # (1, 256, 64, 64)
+                image_embedding = encoder_session.run(None, {'input_image': img_256_tensor.cpu().numpy()})[0]
+                # image_embedding = medsam_lite_model.image_encoder(img_256_tensor) # (1, 256, 64, 64)
             if z == z_middle:
                 box_256 = resize_box_to_256(mid_slice_bbox_2d, original_size=(H, W))
             else:
