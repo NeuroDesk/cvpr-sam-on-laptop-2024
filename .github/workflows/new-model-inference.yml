@@ -27,7 +27,7 @@ jobs:
           pip install -e .
 
           osf --project u8tny fetch test_demo.zip
-          unzip xf test_demo.zip
+          unzip test_demo.zip
           rm test_demo.zip
 
       - name: Run inference
