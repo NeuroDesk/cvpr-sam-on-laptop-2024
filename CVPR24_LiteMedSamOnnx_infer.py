@@ -83,7 +83,7 @@ if save_overlay:
     png_save_dir = args.png_save_dir
     makedirs(png_save_dir, exist_ok=True)
 
-lite_medsam_checkpoint_path = args.lite_medsam_checkpoint_path
+# lite_medsam_checkpoint_path = args.lite_medsam_checkpoint_path
 makedirs(pred_save_dir, exist_ok=True)
 device = torch.device(args.device)
 image_size = 256
@@ -420,10 +420,10 @@ medsam_lite_model = MedSAM_Lite(
     prompt_encoder = medsam_lite_prompt_encoder
 )
 
-lite_medsam_checkpoint = torch.load(lite_medsam_checkpoint_path, map_location='cpu')
-medsam_lite_model.load_state_dict(lite_medsam_checkpoint)
-medsam_lite_model.to(device)
-medsam_lite_model.eval()
+# lite_medsam_checkpoint = torch.load(lite_medsam_checkpoint_path, map_location='cpu')
+# medsam_lite_model.load_state_dict(lite_medsam_checkpoint)
+# medsam_lite_model.to(device)
+# medsam_lite_model.eval()
 
 def MedSAM_infer_npz_2D(img_npz_file):
     npz_name = basename(img_npz_file)
