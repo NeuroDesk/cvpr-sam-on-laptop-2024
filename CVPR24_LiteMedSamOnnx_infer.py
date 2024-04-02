@@ -403,8 +403,8 @@ medsam_lite_mask_decoder = MaskDecoder(
         iou_head_depth=3,
         iou_head_hidden_dim=256,
 )
-encoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_encoder_quant.quant.onnx"
-decoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_optimized.onnx"
+encoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_encoder_quant_optimized.onnx"
+decoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_decoder_optimized.onnx"
 options = onnxruntime.SessionOptions()
 options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
 options.intra_op_num_threads = 2
