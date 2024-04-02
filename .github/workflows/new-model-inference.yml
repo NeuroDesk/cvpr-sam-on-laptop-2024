@@ -26,9 +26,9 @@ jobs:
           pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install -e .
 
-          osf --project u8tny fetch test_demo.tar
-          tar xf test_demo.tar
-          rm test_demo.tar
+          osf --project u8tny fetch test_demo.zip
+          unzip xf test_demo.zip
+          rm test_demo.zip
 
       - name: Run inference
         shell: bash
