@@ -29,12 +29,13 @@ jobs:
           osf --project u8tny fetch test_demo.zip
           unzip test_demo.zip
           rm test_demo.zip
+          tree .
 
       - name: Run inference
         shell: bash
         run: |
-          python CVPR24_LiteMedSamOnnx_infer.py -i test_demo/imgs/ -o test_demo/segs
+          python CVPR24_LiteMedSamOnnx_infer.py -i imgs/ -o segs
 
       - name: Evaluate accuracy and efficiency
         run: |
-          python evaluation/compute_metrics.py -s test_demo/segs -g test_demo/gts -csv_dir ./metrics.csv
+          python evaluation/compute_metrics.py -s segs -g gts -csv_dir ./metrics.csv
