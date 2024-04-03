@@ -76,12 +76,13 @@ def compute_metrics(npz_name):
                 nsd = compute_multi_class_nsd(np.expand_dims(gts, -1), np.expand_dims(segs, -1), spacing)
         else:
             nsd = 0.0
-    return npz_name, dsc, nsd
+    return npz_name, dsc, nsd, gts.shape
 
 if __name__ == '__main__':
     seg_metrics = OrderedDict()
     seg_metrics['case'] = []
     seg_metrics['modality'] = []
+    seg_metrics['image size'] = []
     seg_metrics['dsc'] = []
     if compute_NSD:
         seg_metrics['nsd'] = []
@@ -90,15 +91,22 @@ if __name__ == '__main__':
     npz_names = [npz_name for npz_name in npz_names if npz_name.endswith('.npz')]
     with mp.Pool(num_workers) as pool:
         with tqdm(total=len(npz_names)) as pbar:
-            for i, (npz_name, dsc, nsd) in enumerate(pool.imap_unordered(compute_metrics, npz_names)):
+            for i, (npz_name, dsc, nsd, shape) in enumerate(pool.imap_unordered(compute_metrics, npz_names)):
                 seg_metrics['case'].append(npz_name)
                 modality = npz_name.split('_')[1]
                 seg_metrics['modality'].append(modality)
+                seg_metrics['image size'].append(shape)
                 seg_metrics['dsc'].append(np.round(dsc, 4))
                 if compute_NSD:
                     seg_metrics['nsd'].append(np.round(nsd, 4))
                 pbar.update()
-    df = pd.DataFrame(seg_metrics)
+    seg_metrics['case'].append('Mean')
+    seg_metrics['modality'].append('N/A')
+    seg_metrics['image size'].append('N/A')
+    seg_metrics['dsc'].append(np.round(np.mean(seg_metrics['dsc']), 4))
+    if compute_NSD:
+        seg_metrics['nsd'].append(np.round(np.mean(seg_metrics['nsd']), 4))
+    df = pd.DataFrame.from_dict(seg_metrics)
     # rank based on case column
     df = df.sort_values(by=['case'])
     df.to_csv(csv_dir, index=False)
