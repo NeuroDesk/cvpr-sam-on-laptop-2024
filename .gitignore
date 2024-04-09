@@ -1,4 +1,3 @@
-*.onnx
 *.pyc
 # Project specific
 *.DS_Store

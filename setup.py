@@ -12,10 +12,10 @@ setup(
     version="0.0.1",
     author="Jun Ma",
     python_requires=">=3.9",
-    install_requires=["monai", "timm", "matplotlib", "scikit-image", "SimpleITK>=2.2.1", "pyarrow", "pandas", "nibabel", "tqdm", "scipy", "ipympl", "opencv-python", "jupyterlab", "ipywidgets"],
+    install_requires=["monai", "timm", "matplotlib", "scikit-image", "SimpleITK>=2.2.1", "pyarrow", "pandas", "nibabel", "tqdm", "scipy", "ipympl", "opencv-python", "jupyterlab", "ipywidgets", "onnx", "onnxruntime", "onnxoptimizer"],
     packages=find_packages(exclude="notebooks"),
     extras_require={
-        "all": ["pycocotools", "opencv-python", "onnx", "onnxruntime", "onnxoptimizer"],
+        "all": ["pycocotools", "opencv-python"],
         "dev": ["flake8", "isort", "black", "mypy"],
     },
 )

@@ -1,0 +1,41 @@
+name: Check for new model inference
+
+on:
+  push:
+    paths:
+      - "**/**/*.onnx"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  infer_new_model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up environment and data from osf
+        env:
+          OSF_TOKEN: ${{ secrets.OSF_TOKEN }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install python3.10 python3.10-venv python-is-python3 -y
+          pip install osfclient 
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -e .
+
+          osf --project u8tny fetch test_demo.zip
+          unzip test_demo.zip
+          rm test_demo.zip
+          tree .
+
+      - name: Run inference
+        shell: bash
+        run: |
+          python CVPR24_LiteMedSamOnnx_infer.py -i imgs/ -o segs
+
+      - name: Evaluate accuracy and efficiency
+        run: |
+          python evaluation/compute_metrics.py -s segs -g gts -csv_dir ./metrics.csv
