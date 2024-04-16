@@ -6,9 +6,9 @@
 
 import torch
 
-from segment_anything.build_sam import sam_model_registry
+from LiteMedSAM.build_sam import sam_model_registry
 # from build_sam import sam_model_registry
-from segment_anything.utils.sam_onnx import SamOnnxModel
+from LiteMedSAM.utils.sam_onnx import SamOnnxModel
 
 import argparse
 import warnings

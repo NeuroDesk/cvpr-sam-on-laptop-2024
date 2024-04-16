@@ -8,7 +8,7 @@
 import numpy as np
 import torch
 
-from segment_anything.modeling import Sam
+from LiteMedSAM.modeling import Sam
 
 from typing import Optional, Tuple
 

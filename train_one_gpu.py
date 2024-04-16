@@ -15,7 +15,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from datetime import datetime
 
-from segment_anything.modeling import MaskDecoder, PromptEncoder, TwoWayTransformer
+from LiteMedSAM.modeling import MaskDecoder, PromptEncoder, TwoWayTransformer
 from tiny_vit_sam import TinyViT
 import cv2
 import torch.nn.functional as F

@@ -8,8 +8,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torchvision.transforms.functional import resize
-from segment_anything.modeling import Sam
-from segment_anything.build_sam import sam_model_registry
+from LiteMedSAM.modeling import Sam
+from LiteMedSAM.build_sam import sam_model_registry
 
 
 parser = argparse.ArgumentParser(
