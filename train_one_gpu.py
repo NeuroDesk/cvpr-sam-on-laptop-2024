@@ -16,7 +16,7 @@ from torch.utils.data import Dataset, DataLoader
 from datetime import datetime
 
 from LiteMedSAM.modeling import MaskDecoder, PromptEncoder, TwoWayTransformer
-from tiny_vit_sam import TinyViT
+from LiteMedSAM.tiny_vit_sam import TinyViT
 import cv2
 import torch.nn.functional as F
 
