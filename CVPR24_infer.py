@@ -13,10 +13,10 @@ from tqdm import tqdm
 import argparse
 import gc
 from src.visual_util import show_mask, show_box
+from src.infer_util import efficientsam_infer, get_bbox, medsam_inference, medsam_preprocess, resize_box_to_target
 from src.efficient_sam.build_efficient_sam import build_efficient_sam_vitt, build_efficient_sam_vits
-from src.infer_util import efficientsam_infer, get_bbox, medsam_inference, medsam_preprocess, resize_box_to_1024
 from src.segment_anything import sam_model_registry
-import zipfile
+from src.litemedsam.build_sam import build_sam_vit_t
 
 def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, png_save_dir):
     npz_name = basename(img_npz_file)
@@ -35,6 +35,8 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
         img_1024 = model.preprocess(img_tensor)
     elif model_name == 'medsam':
         img_1024, newh, neww = medsam_preprocess(img_3c, 1024)
+    elif model_name == 'litemedsam':
+        img_1024, newh, neww = medsam_preprocess(img_3c, 256)
 
     with torch.no_grad():
         image_embedding = model.image_encoder(img_1024)
@@ -43,9 +45,14 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
         if model_name == 'efficientsam':
             mask = efficientsam_infer(image_embedding, box, model, H,W)
         elif model_name == 'medsam':
-            box1024 = resize_box_to_1024(box, original_size=(H, W))
+            box1024 = resize_box_to_target(box, original_size=(H, W), target_size=1024)
             box1024 = box1024[None, ...] # (1, 4)
             mask, iou = medsam_inference(model, image_embedding, box1024, (newh, neww), (H, W))
+        elif model_name == 'litemedsam':
+            box256 = resize_box_to_target(box, original_size=(H, W), target_size=256)
+            box256 = box256[None, ...]
+            mask, iou = medsam_inference(model, image_embedding, box256, (newh, neww), (H, W))
+
         segs[mask>0] = idx
 
     np.savez_compressed(
@@ -103,6 +110,8 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
                 img_1024 = model.preprocess(img_tensor)
             elif model_name == 'medsam':
                 img_1024, newh, neww = medsam_preprocess(img_3c, 1024)
+            elif model_name == 'litemedsam':
+                img_1024, newh, neww = medsam_preprocess(img_3c, 256)
 
             # get the image embedding
             with torch.no_grad():
@@ -119,9 +128,14 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
             if model_name == 'efficientsam':
                 mask = efficientsam_infer(image_embedding, box, model, H,W)
             elif model_name == 'medsam':
-                box1024 = resize_box_to_1024(box, original_size=(H, W))
+                box1024 = resize_box_to_target(box, original_size=(H, W), target_size=1024)
                 box1024 = box1024[None, ...]
                 mask, iou_pred = medsam_inference(model, image_embedding, box1024, [newh, neww], [H, W])
+            elif model_name == 'litemedsam':
+                box256 = resize_box_to_target(box, original_size=(H, W), target_size=256)
+                box256 = box256[None, ...]
+                mask, iou_pred = medsam_inference(model, image_embedding, box256, [newh, neww], [H, W])
+
             segs_3d_temp[z, mask>0] = idx
         
         # infer from middle slice to the z_min
@@ -139,6 +153,8 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
                 img_1024 = model.preprocess(img_tensor)
             elif model_name == 'medsam':
                 img_1024, newh, neww = medsam_preprocess(img_3c, 1024)
+            elif model_name == 'litemedsam':
+                img_1024, newh, neww = medsam_preprocess(img_3c, 256)
 
             # get the image embedding
             with torch.no_grad():
@@ -152,9 +168,14 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
             if model_name == 'efficientsam':
                 mask = efficientsam_infer(image_embedding, box, model, H,W)
             elif model_name == 'medsam':
-                box1024 = resize_box_to_1024(box, original_size=(H, W))
+                box1024 = resize_box_to_target(box, original_size=(H, W), target_size=1024)
                 box1024 = box1024[None, ...]
                 mask, iou_pred = medsam_inference(model, image_embedding, box1024, [newh, neww], [H, W])
+            elif model_name == 'litemedsam':
+                box256 = resize_box_to_target(box, original_size=(H, W), target_size=256)
+                box256 = box256[None, ...]
+                mask, iou_pred = medsam_inference(model, image_embedding, box256, [newh, neww], [H, W])
+
             segs_3d_temp[z, mask>0] = idx
         segs[segs_3d_temp>0] = idx
 
@@ -193,7 +214,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_overlay', type=bool, default=True, help='whether to save the overlay image')
     parser.add_argument('--png_save_dir', type=str, default='overlay', help='directory to save the overlay image')
     parser.add_argument('--device', type=str, default="cpu", help='device to run the inference')
-    parser.add_argument('--model_name', type=str, choices=['efficientsam', 'medsam'], help='model name to use for inference')
+    parser.add_argument('--model_name', type=str, choices=['efficientsam', 'medsam','litemedsam'], help='model name to use for inference')
     parser.add_argument('--checkpoint_path', type=str, help='checkpoint file to load the model')
     args = parser.parse_args()
     
@@ -221,6 +242,8 @@ if __name__ == '__main__':
             model = build_efficient_sam_vits(args.checkpoint_path)
     elif args.model_name == 'medsam':
         model = sam_model_registry["vit_b"](checkpoint=args.checkpoint_path)
+    elif args.model_name == 'litemedsam':
+        model = build_sam_vit_t(args.checkpoint_path)       
 
 
     model.to(args.device)

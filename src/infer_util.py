@@ -63,7 +63,7 @@ def get_bbox(mask, bbox_shift=3):
 
     return bboxes
 
-def resize_box_to_1024(box, original_size):
+def resize_box_to_target(box, original_size, target_size):
     """
     the input bounding box is obtained from the original image
     here, we rescale it to the coordinates of the resized image
@@ -74,6 +74,8 @@ def resize_box_to_1024(box, original_size):
         bounding box coordinates in the original image
     original_size : tuple
         the original size of the image
+    target_size : int
+        the size of the resized image
 
     Returns
     -------
@@ -81,7 +83,7 @@ def resize_box_to_1024(box, original_size):
         bounding box coordinates in the resized image
     """
     new_box = np.zeros_like(box)
-    ratio = 1024 / max(original_size)
+    ratio = target_size / max(original_size)
     for i in range(len(box)):
         new_box[i] = int(box[i] * ratio)
 

@@ -8,9 +8,10 @@ import torch
 
 from functools import partial
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .modeling import ImageEncoderViT, MaskDecoder, PromptEncoder, Sam, TwoWayTransformer
-from litemedsam.tiny_vit_sam import TinyViT
+from src.litemedsam.tiny_vit_sam import TinyViT
 
 def build_sam_vit_h(checkpoint=None):
     return _build_sam(
@@ -154,7 +155,7 @@ def build_sam_vit_t(checkpoint=None):
     mobile_sam.eval()
     if checkpoint is not None:
         with open(checkpoint, "rb") as f:
-            state_dict = torch.load(f)
+            state_dict = torch.load(f, map_location="cpu")
         mobile_sam.load_state_dict(state_dict)
     return mobile_sam
 
