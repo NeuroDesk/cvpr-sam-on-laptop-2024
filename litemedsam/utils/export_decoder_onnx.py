@@ -6,9 +6,9 @@
 
 import torch
 
-from LiteMedSAM.build_sam import sam_model_registry
+from litemedsam.build_sam import sam_model_registry
 # from build_sam import sam_model_registry
-from LiteMedSAM.utils.sam_onnx import SamOnnxModel
+from litemedsam.utils.sam_onnx import SamOnnxModel
 
 import argparse
 import warnings

@@ -8,8 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from LiteMedSAM.modeling import MaskDecoder, PromptEncoder, TwoWayTransformer
-from LiteMedSAM.tiny_vit_sam import TinyViT
+from litemedsam.modeling import MaskDecoder, PromptEncoder, TwoWayTransformer
+from litemedsam.tiny_vit_sam import TinyViT
 from matplotlib import pyplot as plt
 import cv2
 import argparse

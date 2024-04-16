@@ -10,7 +10,7 @@ from functools import partial
 import torch.nn as nn
 
 from .modeling import ImageEncoderViT, MaskDecoder, PromptEncoder, Sam, TwoWayTransformer
-from LiteMedSAM.tiny_vit_sam import TinyViT
+from litemedsam.tiny_vit_sam import TinyViT
 
 def build_sam_vit_h(checkpoint=None):
     return _build_sam(
