@@ -21,8 +21,8 @@ import SimpleITK as sitk
 import json
 import torch.nn.functional as F
 
-from segment_anything.modeling import MaskDecoder, PromptEncoder, TwoWayTransformer
-from tiny_vit_sam import TinyViT
+from src.litemedsam.modeling import MaskDecoder, PromptEncoder, TwoWayTransformer
+from src.litemedsam.tiny_vit_sam import TinyViT
 from matplotlib import pyplot as plt
 import cv2
 import torch.multiprocessing as mp

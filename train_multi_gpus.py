@@ -18,8 +18,8 @@ from torch import multiprocessing as mp
 from torch import distributed as dist
 from datetime import datetime
 
-from segment_anything.modeling import MaskDecoder, PromptEncoder, TwoWayTransformer
-from tiny_vit_sam import TinyViT
+from src.litemedsam.modeling import MaskDecoder, PromptEncoder, TwoWayTransformer
+from src.litemedsam.tiny_vit_sam import TinyViT
 import cv2
 import torch.nn.functional as F
 
