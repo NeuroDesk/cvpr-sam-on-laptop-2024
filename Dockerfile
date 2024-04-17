@@ -15,3 +15,4 @@ RUN python -m pip install --user -U pip && python -m pip install --user pip-tool
 
 COPY --chown=user:user . .
 RUN pip install -e .
+RUN pip install memray

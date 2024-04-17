@@ -11,8 +11,24 @@ permissions:
   pull-requests: write
 
 jobs:
+  select-runner:
+    runs-on: ubuntu-22.04
+    outputs:
+      runner: ${{ steps.select_runner.outputs.runner }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Select runner
+        id: select_runner
+        run: |
+          if [ "${{ github.repository }}" = "NeuroDesk/cvpr-sam-on-laptop-2024" ]; then
+            echo "runner=self-hosted" >> $GITHUB_OUTPUT
+          else
+            echo "runner=ubuntu-22.04" >> $GITHUB_OUTPUT
+          fi
+
   infer_new_model:
-    runs-on: ubuntu-latest
+    needs: [select-runner]
+    runs-on: ${{ needs.select-runner.outputs.runner }}
     steps:
       - uses: actions/checkout@v3
 
