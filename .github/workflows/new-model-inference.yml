@@ -46,8 +46,8 @@ jobs:
         shell: bash
         run: |
           mkdir segs && chmod -R 777 ./*
-          docker build -f Dockerfile -t hawken50 .
-          docker container run -m 8G --name hawken50 --rm -v $PWD/imgs/:/workspace/inputs/ -v $PWD/segs/:/workspace/outputs/ litemedsam:latest /bin/bash -c "sh predict.sh"
+          echo ${{ secrets.USERPWD }} | sudo -S docker build -f Dockerfile -t hawken50 .
+          echo ${{ secrets.USERPWD }} | sudo -S docker container run -m 8G --name hawken50 --rm -v $PWD/imgs/:/workspace/inputs/ -v $PWD/segs/:/workspace/outputs/ litemedsam:latest /bin/bash -c "sh predict.sh"
 
       - name: Evaluate accuracy and efficiency
         run: |
