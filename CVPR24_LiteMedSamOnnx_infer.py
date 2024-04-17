@@ -17,6 +17,7 @@ from collections import OrderedDict
 import pandas as pd
 from datetime import datetime
 import onnxruntime
+import gc
 
 #%% set seeds
 torch.set_float32_matmul_precision('high')
@@ -403,16 +404,6 @@ medsam_lite_mask_decoder = MaskDecoder(
         iou_head_depth=3,
         iou_head_hidden_dim=256,
 )
-encoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_encoder_quant_optimized.onnx"
-decoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_decoder_optimized.onnx"
-options = onnxruntime.SessionOptions()
-options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
-options.intra_op_num_threads = 2
-options.enable_mem_pattern = False
-options.enable_cpu_mem_arena = False
-options.enable_mem_reuse = False
-encoder_session = onnxruntime.InferenceSession(encoder_onnx_path, sess_options=options, providers=['CPUExecutionProvider'])
-decoder_session = onnxruntime.InferenceSession(decoder_onnx_path, sess_options=options, providers=['CPUExecutionProvider'])
 
 medsam_lite_model = MedSAM_Lite(
     image_encoder = medsam_lite_image_encoder,
@@ -426,6 +417,8 @@ medsam_lite_model = MedSAM_Lite(
 # medsam_lite_model.eval()
 
 def MedSAM_infer_npz_2D(img_npz_file):
+    gc.collect()
+
     npz_name = basename(img_npz_file)
     npz_data = np.load(img_npz_file, 'r', allow_pickle=True) # (H, W, 3)
     img_3c = npz_data['imgs'] # (H, W, 3)
@@ -482,6 +475,8 @@ def MedSAM_infer_npz_2D(img_npz_file):
 
 
 def MedSAM_infer_npz_3D(img_npz_file):
+    gc.collect()
+
     npz_name = basename(img_npz_file)
     npz_data = np.load(img_npz_file, 'r', allow_pickle=True)
     img_3D = npz_data['imgs'] # (D, H, W)
@@ -558,7 +553,7 @@ def MedSAM_infer_npz_3D(img_npz_file):
             img_256_tensor = torch.tensor(img_256).float().permute(2, 0, 1).unsqueeze(0).to(device)
             # get the image embedding
             with torch.no_grad():
-                image_embedding = medsam_lite_model.image_encoder(img_256_tensor) # (1, 256, 64, 64)
+                image_embedding = encoder_session.run(None, {'input_image': img_256_tensor.cpu().numpy()})[0]
 
             pre_seg = segs[z+1, :, :]
             if np.max(pre_seg) > 0:
@@ -607,8 +602,22 @@ if __name__ == '__main__':
     efficiency = OrderedDict()
     efficiency['case'] = []
     efficiency['time'] = []
+
+    with torch.no_grad():
+        encoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_encoder_quant_optimized.onnx"
+        decoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_decoder_optimized.onnx"
+        options = onnxruntime.SessionOptions()
+        options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+        options.intra_op_num_threads = 2
+        options.enable_mem_pattern = False
+        options.enable_cpu_mem_arena = False
+        options.enable_mem_reuse = False
+        encoder_session = onnxruntime.InferenceSession(encoder_onnx_path, sess_options=options, providers=['CPUExecutionProvider'])
+        decoder_session = onnxruntime.InferenceSession(decoder_onnx_path, sess_options=options, providers=['CPUExecutionProvider'])
+
     for img_npz_file in tqdm(img_npz_files):
         start_time = time()
+        print('Processing:', img_npz_file)
         if basename(img_npz_file).startswith('3D'):
             MedSAM_infer_npz_3D(img_npz_file)
         else:
