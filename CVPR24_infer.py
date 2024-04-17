@@ -54,11 +54,11 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
             mask, iou = medsam_inference(model, image_embedding, box256, (newh, neww), (H, W))
 
         segs[mask>0] = idx
-
-    np.savez_compressed(
-        join(pred_save_dir, npz_name),
-        segs=segs,
-    )
+    if pred_save_dir is not None:
+        np.savez_compressed(
+            join(pred_save_dir, npz_name),
+            segs=segs,
+        )
     if save_overlay:
         fig, ax = plt.subplots(1, 2, figsize=(10, 5))
         ax[0].imshow(img_3c)
@@ -77,7 +77,7 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
         plt.tight_layout()
         plt.savefig(join(png_save_dir, npz_name.split(".")[0] + '.png'), dpi=300)
         plt.close()
-    return img_3c.shape
+    return img_3c, segs, img_3c.shape
 
 def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, png_save_dir):
     npz_name = basename(img_npz_file)
@@ -178,11 +178,11 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
 
             segs_3d_temp[z, mask>0] = idx
         segs[segs_3d_temp>0] = idx
-
-    np.savez_compressed(
-        join(pred_save_dir, npz_name),
-        segs=segs,
-    )
+    if pred_save_dir is not None:
+        np.savez_compressed(
+            join(pred_save_dir, npz_name),
+            segs=segs,
+        )
     # visualize image, mask and bounding box
     if save_overlay:
         idx = int(segs.shape[0] / 2)
@@ -205,7 +205,7 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
         plt.tight_layout()
         plt.savefig(join(png_save_dir, npz_name.split(".")[0] + '.png'), dpi=300)
         plt.close()
-    return img_3D.shape
+    return img_3D, segs, img_3D.shape
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='SAM inference')
@@ -229,8 +229,6 @@ if __name__ == '__main__':
     np.random.seed(2024)
 
     img_npz_files = sorted(glob(join(args.data_root, '*.npz'), recursive=True))
-    done = [basename(f) for f in sorted(glob(join(args.pred_save_dir, '*.npz')))]
-    print(len(done))
     efficiency = OrderedDict()
     efficiency['case'] = []
     efficiency['image size'] = []
@@ -254,9 +252,9 @@ if __name__ == '__main__':
         gc.collect()
 
         if basename(img_npz_file).startswith('3D'):
-            image_size = infer_npz_3D(model, args.model_name, img_npz_file, args.pred_save_dir, args.save_overlay, args.png_save_dir)
+            segs, image_size = infer_npz_3D(model, args.model_name, img_npz_file, args.pred_save_dir, args.save_overlay, args.png_save_dir)
         else:
-             image_size = infer_npz_2D(model, args.model_name, img_npz_file, args.pred_save_dir, args.save_overlay, args.png_save_dir)
+             segs, image_size = infer_npz_2D(model, args.model_name, img_npz_file, args.pred_save_dir, args.save_overlay, args.png_save_dir)
         end_time = time()
         efficiency['case'].append(basename(img_npz_file))
         efficiency['image size'].append(image_size)
