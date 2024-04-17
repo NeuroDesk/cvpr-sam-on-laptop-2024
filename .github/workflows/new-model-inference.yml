@@ -33,10 +33,9 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Set up environment and data from osf
-        env:
-          OSF_TOKEN: ${{ secrets.OSF_TOKEN }}
         run: |
-          pip install osfclient 
+          python -m pip install --upgrade pip
+          python -m pip install osfclient
           osf --project u8tny fetch test_demo.zip
           unzip test_demo.zip
           rm test_demo.zip
