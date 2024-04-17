@@ -36,12 +36,7 @@ jobs:
         env:
           OSF_TOKEN: ${{ secrets.OSF_TOKEN }}
         run: |
-          sudo apt-get update
-          sudo apt-get install python3.10 python3.10-venv python-is-python3 -y
           pip install osfclient 
-          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install -e .
-
           osf --project u8tny fetch test_demo.zip
           unzip test_demo.zip
           rm test_demo.zip
@@ -50,8 +45,11 @@ jobs:
       - name: Run inference
         shell: bash
         run: |
-          python CVPR24_LiteMedSamOnnx_infer.py -i imgs/ -o segs
+          mkdir segs && chmod -R 777 ./*
+          docker build -f Dockerfile -t hawken50 .
+          docker container run -m 8G --name hawken50 --rm -v $PWD/imgs/:/workspace/inputs/ -v $PWD/segs/:/workspace/outputs/ litemedsam:latest /bin/bash -c "sh predict.sh"
 
       - name: Evaluate accuracy and efficiency
         run: |
           python evaluation/compute_metrics.py -s segs -g gts -csv_dir ./metrics.csv
+          cat ./metrics.csv >> $GITHUB_STEP_SUMMARY
