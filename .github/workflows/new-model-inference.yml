@@ -36,10 +36,10 @@ jobs:
           python-version: '3.10' 
       - name: Set up environment and data from osf
         run: |
-          apt-get install unzip
           python -m pip install --upgrade pip
           python -m pip install osfclient
           osf --project u8tny fetch test_demo.zip
+          tar 
           unzip test_demo.zip
           rm test_demo.zip
 
