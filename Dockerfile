@@ -2,7 +2,9 @@ FROM pytorch/pytorch:latest
 
 RUN groupadd -r user && useradd -m --no-log-init -r -g user user
 # required by cv2
-RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
+
+RUN echo "nameserver 1.1.1.1" > /etc/resolv.conf && \ 
+    apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
 
 RUN mkdir -p /opt/app /inputs /outputs \
     && chown user:user /opt/app /inputs /outputs
