@@ -10,7 +10,6 @@ from SurfaceDice import compute_surface_distances, compute_surface_dice_at_toler
 from tqdm import tqdm
 import multiprocessing as mp
 import argparse
-import wandb
 import matplotlib.pyplot as plt
 
 def compute_multi_class_dsc(gt, seg):
@@ -112,6 +111,7 @@ if __name__ == '__main__':
     df.to_csv(csv_dir, index=False)
 
     if wandb_log:
+        import wandb
         wandb.init(
             project='MedSAM_Laptop',  
             name=wandb_key,
@@ -134,6 +134,7 @@ if __name__ == '__main__':
         # if compute_NSD:
         #     print(f'{modality}: NSD mean: {nsd_mean:.4f}, NSD std: {nsd_std:.4f}')      
         if wandb_log:
+            import wandb
             wandb_table['Modality'].append(modality)
             wandb_table['DSC mean'].append(dsc_mean)
             wandb_table['DSC std'].append(dsc_std)
@@ -145,6 +146,7 @@ if __name__ == '__main__':
             overlay = plt.imread(os.path.join(overlay_dir, f'{overlay_id}.png'))  
             wandb_table['Worse case'].append(wandb.Image(overlay, caption=overlay_id))
     if wandb_log:
+        import wandb
         wandb_df = pd.DataFrame(wandb_table)
 
         dsc_mean, dsc_std = df['dsc'].mean(), df['dsc'].std()
