@@ -43,7 +43,8 @@ jobs:
           osf --project u8tny fetch checkpoints/LiteMedSAM/lite_medsam_decoder_optimized.onnx
           tar -xvf test_demo.tar.xz
           rm test_demo.tar.xz
-          mv litemedsam_encoder.opt.quant.onnx lite_medsam_decoder_optimized.onnx work_dir
+          mv litemedsam_encoder.opt.quant.onnx lite_medsam_decoder_optimized.onnx work_dir/
+          ls work_dir
 
       - name: Run inference
         shell: bash
