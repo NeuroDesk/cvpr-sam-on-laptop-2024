@@ -44,13 +44,15 @@ jobs:
           tar -xvf test_demo.tar.xz
           rm test_demo.tar.xz
           mv litemedsam_encoder.opt.quant.onnx lite_medsam_decoder_optimized.onnx work_dir/
-          ls work_dir
+          ls
 
       - name: Run inference
         shell: bash
         run: |
           mkdir segs && chmod -R 777 ./*
           echo ${{ secrets.USERPWD }} | sudo -S docker build -f Dockerfile -t hawken50 .
+          echo ${{ secrets.USERPWD }} | sudo -S docker container run -m 8G --name hawken50 --rm hawken50:latest /bin/bash -c "ls"
+          echo ${{ secrets.USERPWD }} | sudo -S docker container run -m 8G --name hawken50 --rm hawken50:latest /bin/bash -c "ls work_dir"
           echo ${{ secrets.USERPWD }} | sudo -S docker container run -m 8G --name hawken50 --rm -v $PWD/imgs/:/workspace/inputs/ -v $PWD/segs/:/workspace/outputs/ hawken50:latest /bin/bash -c "sh predict.sh"
 
       - name: Evaluate accuracy and efficiency
