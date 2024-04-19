@@ -13,7 +13,6 @@ from collections import OrderedDict
 import pandas as pd
 from datetime import datetime
 import onnxruntime
-import gc
 
 #%% set seeds
 torch.set_float32_matmul_precision('high')
@@ -190,8 +189,6 @@ def resize_box_to_256(box, original_size):
 
 @torch.no_grad()
 def onnx_decoder_inference(decoder_session, image_embedding_slice, input_points, input_box, new_size, original_size):
-    # decoder_session = onnxruntime.InferenceSession(decoder_path, providers=['CPUExecutionProvider'])
-
     if len(input_points)>0:
         input_label = np.array([1])
     if input_box is None:
@@ -232,7 +229,7 @@ def onnx_decoder_inference(decoder_session, image_embedding_slice, input_points,
     return medsam_seg, scores
 
 def MedSAM_infer_npz_2D(img_npz_file, encoder_session, decoder_session):
-    gc.collect()
+    # gc.collect()
 
     npz_name = basename(img_npz_file)
     npz_data = np.load(img_npz_file, 'r', allow_pickle=True) # (H, W, 3)
@@ -261,7 +258,6 @@ def MedSAM_infer_npz_2D(img_npz_file, encoder_session, decoder_session):
         medsam_mask, iou_pred = onnx_decoder_inference(decoder_session, image_embedding, [], box256, (newh, neww), [H, W])
         # print("medsam_mask", medsam_mask.shape, medsam_mask.dtype, segs.shape)
         segs[medsam_mask>0] = idx
-        # print(f'{npz_name}, box: {box}, predicted iou: {np.round(iou_pred.item(), 4)}')
    
     np.savez_compressed(
         join(pred_save_dir, npz_name),
@@ -270,12 +266,11 @@ def MedSAM_infer_npz_2D(img_npz_file, encoder_session, decoder_session):
 
 
 def MedSAM_infer_npz_3D(img_npz_file, encoder_session, decoder_session):
-    gc.collect()
+    # gc.collect()
 
     npz_name = basename(img_npz_file)
     npz_data = np.load(img_npz_file, 'r', allow_pickle=True)
     img_3D = npz_data['imgs'] # (D, H, W)
-    spacing = npz_data['spacing'] # not used in this demo because it treats each slice independently
     segs = np.zeros_like(img_3D, dtype=np.uint8) 
     boxes_3D = npz_data['boxes'] # [[x_min, y_min, z_min, x_max, y_max, z_max]]
 
@@ -375,11 +370,11 @@ if __name__ == '__main__':
     efficiency['time'] = []
 
     with torch.no_grad():
-        encoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_encoder_quant_optimized.onnx"
+        encoder_onnx_path = "work_dir/LiteMedSAM/litemedsam_encoder.opt.quant.onnx"
         decoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_decoder_optimized.onnx"
         options = onnxruntime.SessionOptions()
         options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
-        options.intra_op_num_threads = 2
+        options.intra_op_num_threads = num_workers
         options.enable_mem_pattern = False
         options.enable_cpu_mem_arena = False
         options.enable_mem_reuse = False
