@@ -37,9 +37,15 @@ parser.add_argument(
     help='directory to save the prediction',
 )
 parser.add_argument(
-    '-lite_medsam_checkpoint_path',
+    '-model_path',
     type=str,
-    default="work_dir/LiteMedSAM/lite_medsam.pth",
+    default="work_dir/LiteMedSAM/litemedsam_encoder.opt.quant.onnx",
+    help='path to the checkpoint of MedSAM-Lite',
+)
+parser.add_argument(
+    '-decoder_path',
+    type=str,
+    default="work_dir/LiteMedSAM/lite_medsam_decoder_optimized.onnx",
     help='path to the checkpoint of MedSAM-Lite',
 )
 parser.add_argument(
@@ -370,8 +376,8 @@ if __name__ == '__main__':
     efficiency['time'] = []
 
     with torch.no_grad():
-        encoder_onnx_path = "work_dir/LiteMedSAM/litemedsam_encoder.opt.quant.onnx"
-        decoder_onnx_path = "work_dir/LiteMedSAM/lite_medsam_decoder_optimized.onnx"
+        encoder_onnx_path = glob(join(args.model_path, '*encoder*.onnx'))[0]
+        decoder_onnx_path = glob(join(args.model_path, '*decoder*.onnx'))[0]
         options = onnxruntime.SessionOptions()
         options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
         options.intra_op_num_threads = num_workers

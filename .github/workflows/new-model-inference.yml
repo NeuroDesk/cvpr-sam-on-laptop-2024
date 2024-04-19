@@ -37,10 +37,11 @@ jobs:
       - name: Set up environment and data from osf
         run: |
           python -m pip install --upgrade pip
-          python -m pip install osfclient
-          osf --project u8tny fetch test_demo.tar.xz
+          python -m pip install osfclient numpy nibabel pandas tqdm matplotlib scipy
+          osf --project u8tny fetch test_demo.tar.xz checkpoints/LiteMedSAM/litemedsam_encoder.opt.quant.onnx checkpoints/LiteMedSAM/lite_medsam_decoder_optimized.onnx
           tar -xvf test_demo.tar.xz
           rm test_demo.tar.xz
+          mv litemedsam_encoder.opt.quant.onnx lite_medsam_decoder_optimized.onnx work_dir
 
       - name: Run inference
         shell: bash
