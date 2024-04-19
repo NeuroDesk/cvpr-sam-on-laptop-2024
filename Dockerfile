@@ -14,6 +14,7 @@ ENV PATH="/home/user/.local/bin:${PATH}"
 
 RUN python -m pip install --user -U pip && python -m pip install --user pip-tools && rm -rf $HOME/.cache
 
-COPY --chown=user:user CVPR24_LiteMedSamOnnx_infer.py work_dir setup.py predict.sh ./
+COPY --chown=user:user CVPR24_LiteMedSamOnnx_infer.py setup.py predict.sh ./
+COPY --chown=user:user work_dir work_dir
 RUN pip install -e . && rm -rf $HOME/.cache
 RUN pip install memray && rm -rf $HOME/.cache
