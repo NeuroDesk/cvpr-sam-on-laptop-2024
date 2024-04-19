@@ -376,8 +376,9 @@ if __name__ == '__main__':
     efficiency['time'] = []
 
     with torch.no_grad():
-        encoder_onnx_path = glob(join(args.model_path, '*encoder*.onnx'))[0]
-        decoder_onnx_path = glob(join(args.model_path, '*decoder*.onnx'))[0]
+        print(glob(join(args.model_path, '*encoder*.onnx')))
+        encoder_onnx_path = glob(join(args.model_path, '*encoder*.onnx'))
+        decoder_onnx_path = glob(join(args.model_path, '*decoder*.onnx'))
         options = onnxruntime.SessionOptions()
         options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
         options.intra_op_num_threads = num_workers
