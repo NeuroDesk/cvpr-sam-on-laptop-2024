@@ -33,10 +33,10 @@ def compute_multi_class_nsd(gt, seg, spacing, tolerance=2.0):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-s', '--seg_dir', default='/scratch/project/bollmann_lab/MedSAM_Laptop/datasets/test_demo/segs', type=str)
-parser.add_argument('-g', '--gt_dir', default='/scratch/project/bollmann_lab/MedSAM_Laptop/datasets/test_demo/gts', type=str)
-parser.add_argument('-o', '--overlay_dir', default='/scratch/project/bollmann_lab/MedSAM_Laptop/datasets/test_demo/overlay', type=str)
-parser.add_argument('-csv_dir', default='/scratch/project/bollmann_lab/MedSAM_Laptop/results/test_demo/metrics.csv', type=str)
+parser.add_argument('-s', '--seg_dir', default='./test_demo/segs', type=str)
+parser.add_argument('-g', '--gt_dir', default='./test_demo/gts', type=str)
+parser.add_argument('-o', '--overlay_dir', default='./test_demo/overlay', type=str)
+parser.add_argument('-csv_dir', default='./test_demo/metrics.csv', type=str)
 parser.add_argument('-num_workers', type=int, default=5)
 parser.add_argument('-nsd', default=True, type=bool, help='set it to False to disable NSD computation and save time')
 parser.add_argument('-wandb_log', default=False, action='store_true', help='set it to True to enable wandb dashboard')
@@ -45,7 +45,12 @@ args = parser.parse_args()
 
 seg_dir = args.seg_dir
 gt_dir = args.gt_dir
-overlay_dir = args.overlay_dir
+overlays_available = False
+if os.path.isdir(args.overlay_dir):
+    overlays_available = True
+    overlay_dir = args.overlay_dir
+else:
+    print(f"Warning: Overlay directory {args.overlay_dir} does not exist")
 csv_dir = args.csv_dir
 num_workers = args.num_workers
 compute_NSD = args.nsd
@@ -109,6 +114,7 @@ if __name__ == '__main__':
     # rank based on case column
     df = df.sort_values(by=['case'])
     df.to_csv(csv_dir, index=False)
+    print("Metrics data saved to:", csv_dir)
 
     if wandb_log:
         import wandb
@@ -123,7 +129,8 @@ if __name__ == '__main__':
         if compute_NSD:
             wandb_table['NSD mean'] = []
             wandb_table['NSD std'] = []
-        wandb_table['Worse case'] = []
+        if overlays_available:
+            wandb_table['Worse case'] = []
     # metrics group by modality
     modality_group = df.groupby('modality')
     # min_case = modality_group['dsc'].idxmin()
@@ -142,11 +149,14 @@ if __name__ == '__main__':
                 wandb_table['NSD mean'].append(nsd_mean)
                 wandb_table['NSD std'].append(nsd_std)
             # minimum case for each modality
-            overlay_id = df.iloc[group['dsc'].idxmin()]['case'].split('.')[0]
-            overlay = plt.imread(os.path.join(overlay_dir, f'{overlay_id}.png'))  
-            wandb_table['Worse case'].append(wandb.Image(overlay, caption=overlay_id))
+            if overlays_available:
+                overlay_id = df.iloc[group['dsc'].idxmin()]['case'].split('.')[0]
+                overlay = plt.imread(os.path.join(overlay_dir, f'{overlay_id}.png'))  
+                wandb_table['Worse case'].append(wandb.Image(overlay, caption=overlay_id))
+            
     if wandb_log:
         import wandb
+        print(wandb_table)
         wandb_df = pd.DataFrame(wandb_table)
 
         dsc_mean, dsc_std = df['dsc'].mean(), df['dsc'].std()
