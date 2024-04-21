@@ -27,18 +27,21 @@ import time
 import argparse
 from collections import OrderedDict
 import pandas as pd
+import statistics
 
 parser = argparse.ArgumentParser('Segmentation efficiency eavluation for docker containers', add_help=False)
 parser.add_argument('-i', '--test_img_path', default='./test_demo/imgs', type=str, help='testing data path')
 parser.add_argument('-o','--segs_save_path', default='./test_demo/segs', type=str, help='segmentation output path')
 parser.add_argument('-t','--timing_save_path', default='./test_demo/', type=str, help='running time data output path')
 parser.add_argument('-n','--docker_image_name', type=str, help='File name of the docker image')
+parser.add_argument('-r','--repeat', type=int, default=1, help='Amount of times each test case should be run')
 args = parser.parse_args()
 
 test_img_path = args.test_img_path
 segs_save_path = args.segs_save_path
 timing_save_path = args.timing_save_path
 docker_image_name = args.docker_image_name
+repeat = args.repeat
 
 os.makedirs(segs_save_path, exist_ok=True)
 input_temp = './inputs_temp/'
@@ -49,7 +52,7 @@ test_cases = sorted(os.listdir(test_img_path))
 # Get the root password from stdin since running the docker containers
 # may require root permissions
 print("If a root password is provided, docker run will be executed with root privileges.")
-print("If no password is provided (empty string) then will attempt" +
+print("If no password is provided (empty string) then will attempt " +
       "to run docker run without root privileges.")
 root_pass=input("Enter the root password: ")
 
@@ -72,6 +75,7 @@ try:
     os.system('chmod -R 777 {} {}'.format(input_temp, output_temp))
     metric = OrderedDict()
     metric['CaseName'] = []
+    metric['Runs'] = []
     metric['InferenceTime'] = []
     metric['RunningTime'] = []
     # To obtain the running time for each case, testing cases are inferred one-by-one
@@ -81,19 +85,26 @@ try:
         # Run inference on the test case and obtain the running time
         cmd = ['sudo', '-S', 'docker', 'container', 'run', '-m', '8G', '--name', teamname, '--rm', '-v', f'{input_temp}:/workspace/inputs/', '-v', f'{output_temp}:/workspace/outputs/', f'{teamname}:latest', '/bin/bash', '-c', 'sh predict.sh']
         print(teamname, ' docker command:', " ".join(cmd), '\n', 'testing image name:', case)
-        start_time = time.time()
-        if root_pass:
-            subprocess.run(cmd, input=root_pass, text=True)
-        else:
-            subprocess.run(cmd[2:], input=root_pass, text=True)
-        real_running_time = time.time() - start_time
-        print(f"{case} finished! Running time: {real_running_time}")
+        
+        inference_times = []
+        running_times = []
+        for i in range(0, repeat):
+            start_time = time.time()
+            if root_pass:
+                subprocess.run(cmd, input=root_pass, text=True)
+            else:
+                subprocess.run(cmd[2:], input=root_pass, text=True)
+            real_running_time = time.time() - start_time
+            running_times.append(real_running_time)
+            efficiency_df = pd.read_csv(join(output_temp, "efficiency.csv"))
+            inference_times.append(efficiency_df.iloc[0]['time'])
+            print(f"{case} run {i+1} finished! Running time: {real_running_time}")
         
         # save metrics
-        efficiency_df = pd.read_csv(join(output_temp, "efficiency.csv"))
         metric['CaseName'].append(case)
-        metric['InferenceTime'].append(efficiency_df.iloc[0]['time'])
-        metric['RunningTime'].append(real_running_time)
+        metric['Runs'].append(repeat)
+        metric['InferenceTime'].append(statistics.mean(inference_times))
+        metric['RunningTime'].append(statistics.mean(running_times))
         os.remove(join(input_temp, case))  
         seg_name = case
         try:
@@ -102,6 +113,7 @@ try:
             print(f"{join(output_temp, seg_name)}, {join(team_outpath, seg_name)}")
             print("Wrong segmentation name!!! It should be the same as image_name")
     metric_df = pd.DataFrame(metric)
+    metric_df.columns=['Case name', 'Number of runs', 'Mean inference time', 'Mean running time']
     running_time_path = join(timing_save_path, 'running_time.csv')
     print("Running time data saved to:", running_time_path)
     metric_df.to_csv(running_time_path, index=False)
