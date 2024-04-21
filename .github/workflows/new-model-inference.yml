@@ -65,8 +65,8 @@ jobs:
 
       - name: Display accuracy, efficiency, and running time
         run: |
-          printf "Metrics:\n"
+          printf "Metrics:\n" >> $GITHUB_STEP_SUMMARY
           cat ./metrics.csv >> $GITHUB_STEP_SUMMARY
-          printf "\n\n"
-          printf "Running time:\n"
+          printf "\n\n" >> $GITHUB_STEP_SUMMARY
+          printf "Running time:\n" >> $GITHUB_STEP_SUMMARY
           cat ./running_time.csv >> $GITHUB_STEP_SUMMARY
