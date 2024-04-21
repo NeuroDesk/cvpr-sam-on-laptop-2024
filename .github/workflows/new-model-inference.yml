@@ -30,6 +30,10 @@ jobs:
     needs: [select-runner]
     runs-on: ${{ needs.select-runner.outputs.runner }}
     steps:
+      - name: Cleanup
+        shell: bash
+        run: |
+          ls -l
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
