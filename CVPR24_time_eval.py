@@ -23,7 +23,6 @@ import os
 join = os.path.join
 import shutil
 import time
-import torch
 import argparse
 from collections import OrderedDict
 import pandas as pd
