@@ -2,7 +2,9 @@
 
 # This script runs inference on all the test images, 
 # and outputs running time and metrics.
-# This script should be run from the repo root
+# This script should be run from the repo root.
+# Since running docker may require root privileges, 
+# the sudo password should be piped into the stdin of this script
 
 metrics_save_path="$1"
 timestamp=$(date +%d-%m-%Y-%H-%M-%S)

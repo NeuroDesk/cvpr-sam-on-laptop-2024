@@ -20,6 +20,7 @@ CVPR24_time_eval.py
 """
 
 import os
+import subprocess
 join = os.path.join
 import shutil
 import time
@@ -45,6 +46,10 @@ output_temp = './outputs_temp/'
 
 test_cases = sorted(os.listdir(test_img_path))
 
+# Get the root password from stdin since running the docker containers
+# may require root permissions
+root_pass=input("Enter the root password: ")
+
 try:
     # create temp folers for inference one-by-one
     if os.path.exists(input_temp):
@@ -69,12 +74,15 @@ try:
     # To obtain the running time for each case, testing cases are inferred one-by-one
     for case in test_cases:
         shutil.copy(join(test_img_path, case), input_temp)
-        cmd = 'sudo -S docker container run -m 8G --name {} --rm -v {}:/workspace/inputs/ -v {}:/workspace/outputs/ {}:latest /bin/bash -c "sh predict.sh" '.format(teamname, input_temp, output_temp, teamname)
-        print(teamname, ' docker command:', cmd, '\n', 'testing image name:', case)
+        
+        # Run inference on the test case and obtain the running time
+        cmd = ['sudo', '-S', 'docker', 'container', 'run', '-m', '8G', '--name', teamname, '--rm', '-v', f'{input_temp}:/workspace/inputs/', '-v', f'{output_temp}:/workspace/outputs/', f'{teamname}:latest', '/bin/bash', '-c', 'sh predict.sh']
+        print(teamname, ' docker command:', " ".join(cmd), '\n', 'testing image name:', case)
         start_time = time.time()
-        os.system(cmd)
+        subprocess.run(cmd, input=root_pass, text=True)
         real_running_time = time.time() - start_time
-        print(f"{case} finished! Inference time: {real_running_time}")
+        print(f"{case} finished! Running time: {real_running_time}")
+        
         # save metrics
         efficiency_df = pd.read_csv(join(output_temp, "efficiency.csv"))
         metric['CaseName'].append(case)
