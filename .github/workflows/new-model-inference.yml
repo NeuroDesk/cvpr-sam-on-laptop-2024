@@ -44,6 +44,7 @@ jobs:
           tar -xvf test_demo.tar.xz
           rm test_demo.tar.xz
           mv litemedsam_encoder.opt.quant.onnx lite_medsam_decoder_optimized.onnx work_dir/
+          mv gts segs test_demo
           ls
 
       - name: Run inference
