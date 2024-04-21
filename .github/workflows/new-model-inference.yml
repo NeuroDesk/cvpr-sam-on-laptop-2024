@@ -33,6 +33,7 @@ jobs:
       - name: Cleanup
         shell: bash
         run: |
+          pwd
           ls -l
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
