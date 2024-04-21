@@ -48,6 +48,9 @@ test_cases = sorted(os.listdir(test_img_path))
 
 # Get the root password from stdin since running the docker containers
 # may require root permissions
+print("If a root password is provided, docker run will be executed with root privileges.")
+print("If no password is provided (empty string) then will attempt" +
+      "to run docker run without root privileges.")
 root_pass=input("Enter the root password: ")
 
 try:
@@ -79,7 +82,10 @@ try:
         cmd = ['sudo', '-S', 'docker', 'container', 'run', '-m', '8G', '--name', teamname, '--rm', '-v', f'{input_temp}:/workspace/inputs/', '-v', f'{output_temp}:/workspace/outputs/', f'{teamname}:latest', '/bin/bash', '-c', 'sh predict.sh']
         print(teamname, ' docker command:', " ".join(cmd), '\n', 'testing image name:', case)
         start_time = time.time()
-        subprocess.run(cmd, input=root_pass, text=True)
+        if root_pass:
+            subprocess.run(cmd, input=root_pass, text=True)
+        else:
+            subprocess.run(cmd[2:], input=root_pass, text=True)
         real_running_time = time.time() - start_time
         print(f"{case} finished! Running time: {real_running_time}")
         
