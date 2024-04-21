@@ -69,7 +69,7 @@ try:
     # To obtain the running time for each case, testing cases are inferred one-by-one
     for case in test_cases:
         shutil.copy(join(test_img_path, case), input_temp)
-        cmd = 'sudo docker container run -m 8G --name {} --rm -v {}:/workspace/inputs/ -v {}:/workspace/outputs/ {}:latest /bin/bash -c "sh predict.sh" '.format(teamname, input_temp, output_temp, teamname)
+        cmd = 'sudo -S docker container run -m 8G --name {} --rm -v {}:/workspace/inputs/ -v {}:/workspace/outputs/ {}:latest /bin/bash -c "sh predict.sh" '.format(teamname, input_temp, output_temp, teamname)
         print(teamname, ' docker command:', cmd, '\n', 'testing image name:', case)
         start_time = time.time()
         os.system(cmd)
