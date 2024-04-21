@@ -55,7 +55,7 @@ jobs:
           echo ${{ secrets.USERPWD }} | sudo -S docker build -f Dockerfile -t "$DOCKER_IMAGE_NAME" .
           echo ${{ secrets.USERPWD }} | sudo -S docker container run -m 8G --name "$DOCKER_IMAGE_NAME" --rm "$DOCKER_IMAGE_NAME":latest /bin/bash -c "ls"
           echo ${{ secrets.USERPWD }} | sudo -S docker container run -m 8G --name "$DOCKER_IMAGE_NAME" --rm "$DOCKER_IMAGE_NAME":latest /bin/bash -c "ls work_dir"
-          ./evaluate.sh .
+          echo ${{ secrets.USERPWD }} | sudo -S ./evaluate.sh .
 
       - name: Display accuracy, efficiency, and running time
         run: |
