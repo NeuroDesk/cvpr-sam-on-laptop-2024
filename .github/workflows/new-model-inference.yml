@@ -35,7 +35,7 @@ jobs:
         run: |
           pwd
           ls -l
-          rm -rf test_demo/runs
+          echo ${{ secrets.USERPWD }} | sudo -S rm -rf test_demo/runs
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
