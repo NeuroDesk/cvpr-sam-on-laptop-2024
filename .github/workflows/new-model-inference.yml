@@ -42,8 +42,6 @@ jobs:
           python-version: '3.10' 
       - name: Set up environment and data from osf
         run: |
-          echo ${{ secrets.USERPWD }} | sudo -S python -m pip install --upgrade pip
-          echo ${{ secrets.USERPWD }} | sudo -S python -m pip install osfclient numpy nibabel pandas tqdm matplotlib scipy
           osf --project u8tny fetch test_demo.tar.xz 
           osf --project u8tny fetch checkpoints/LiteMedSAM/litemedsam_encoder.opt.quant.onnx 
           osf --project u8tny fetch checkpoints/LiteMedSAM/lite_medsam_decoder_optimized.onnx
@@ -56,6 +54,8 @@ jobs:
       - name: Run inference
         shell: bash
         run: |
+          echo ${{ secrets.USERPWD }} | sudo -S python -m pip install --upgrade pip
+          echo ${{ secrets.USERPWD }} | sudo -S python -m pip install osfclient numpy nibabel pandas tqdm matplotlib scipy
           mkdir segs && chmod -R 777 ./*
           export DOCKER_IMAGE_NAME=hawken50
           echo ${{ secrets.USERPWD }} | sudo -S docker build -f Dockerfile -t "$DOCKER_IMAGE_NAME" .
