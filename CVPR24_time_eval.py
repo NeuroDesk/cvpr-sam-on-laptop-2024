@@ -76,8 +76,10 @@ try:
     metric = OrderedDict()
     metric['CaseName'] = []
     metric['Runs'] = []
-    metric['InferenceTime'] = []
-    metric['RunningTime'] = []
+    metric['InferenceTimeMean'] = []
+    metric['InferenceTimeStd'] = []
+    metric['RunningTimeMean'] = []
+    metric['RunningTimeStd'] = []
     # To obtain the running time for each case, testing cases are inferred one-by-one
     for case in test_cases:
         shutil.copy(join(test_img_path, case), input_temp)
@@ -103,8 +105,10 @@ try:
         # save metrics
         metric['CaseName'].append(case)
         metric['Runs'].append(repeat)
-        metric['InferenceTime'].append(statistics.mean(inference_times))
-        metric['RunningTime'].append(statistics.mean(running_times))
+        metric['InferenceTimeMean'].append(statistics.mean(inference_times))
+        metric['InferenceTimeStd'].append(statistics.stdev(inference_times))
+        metric['RunningTimeMean'].append(statistics.mean(running_times))
+        metric['RunningTimeStd'].append(statistics.stdev(running_times))
         os.remove(join(input_temp, case))  
         seg_name = case
         try:
@@ -113,10 +117,11 @@ try:
             print(f"{join(output_temp, seg_name)}, {join(team_outpath, seg_name)}")
             print("Wrong segmentation name!!! It should be the same as image_name")
     metric_df = pd.DataFrame(metric)
-    metric_df.columns=['Case name', 'Number of runs', 'Mean inference time', 'Mean running time']
+    metric_df.columns=['Case name', 'Number of runs', 'Inference time (mean)', 
+                       'Inference time (stddev)', 'Running time (mean)', 'Running time (stddev)']
     running_time_path = join(timing_save_path, 'running_time.csv')
     print("Running time data saved to:", running_time_path)
-    metric_df.to_csv(running_time_path, index=False)
+    metric_df.to_csv(running_time_path, index=False, float_format='%.3f')
     shutil.rmtree(input_temp)
     shutil.rmtree(output_temp)
 except Exception as e:

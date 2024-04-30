@@ -5,6 +5,9 @@
 #               The file will be taken from test_demo/imgs
 # Parameter 2: Path to the root of the repo. If not given,
 #               will assume that the cwd is the root
+# 
+# Prerequisites: The test data and model should be downloaded
+# and placed in the correct folders according to the repo README
 
 test_file_name="$1"
 repo_root="$2"
@@ -30,4 +33,5 @@ python3 -m kernprof -l "${repo_root}/CVPR24_LiteMedSamOnnx_infer_profile.py" \
     -i ./workspace/imgs -o ./workspace/"$timestamp"/outputs \
     -f "./workspace/imgs/$test_file_name" -model_path work_dir/LiteMedSAM
 python3 -m line_profiler -rmt "CVPR24_LiteMedSamOnnx_infer_profile.py.lprof" > "profiler_output_$test_file_name.txt"
-rm "CVPR24_LiteMedSamOnnx_infer_profile.py.lprof"
+
+echo "Inspected profiler output has been written to profiler_output_$test_file_name.txt"
