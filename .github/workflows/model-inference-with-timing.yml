@@ -1,4 +1,4 @@
-name: Check for new model inference
+name: Inference with metrics and timing evaluation
 
 on:
   push:
