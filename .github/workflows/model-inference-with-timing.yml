@@ -131,5 +131,6 @@ jobs:
 
       - name: Plot results
         run: |
-          python plot_results.py -models ${{ needs.list_models.outputs.model_list }}
+          echo "models=${{ fromJson(needs.list_models.outputs.model_list) }}"
+          python plot_results.py -models ${{ fromJson(needs.list_models.outputs.model_list) }}
           cat ./pareto_front.png >> $GITHUB_STEP_SUMMARY
