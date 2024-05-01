@@ -103,3 +103,32 @@ jobs:
           printf "\n\n" >> $GITHUB_STEP_SUMMARY
           printf "Running time:\n" >> $GITHUB_STEP_SUMMARY
           cat ./running_time.csv >> $GITHUB_STEP_SUMMARY
+          mkdir ${{ matrix.models }}_results
+          mv metrics.csv running_time.csv ${{ matrix.models }}_results/
+
+      - name: Archive metrics and running time
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.models }}_results
+          path: |
+            ${{ matrix.models }}_results
+
+  plot_results:
+    needs: [list_models, infer_new_model]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' 
+      - name: Set up environment and data from osf
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy tqdm matplotlib scipy pandas
+
+      - name: Download result artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Plot results
+        run: |
+          python plot_results.py -models ${{ needs.list_models.outputs.model_list }}
