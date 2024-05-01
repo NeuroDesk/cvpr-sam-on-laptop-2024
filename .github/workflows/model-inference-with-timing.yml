@@ -42,7 +42,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install osfclient
           osf --project u8tny clone osf_storage
-          ls
+          ls osf_storage
+          tree .
           model_dir=$(find osf_storage/checkpoints/ -type f -name *.onnx | cut -d/ -f2)
           all_models=$(echo $model_dir | tr ' ' '\n' | cut -d. -f1 | sort | uniq)
 
