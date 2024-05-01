@@ -37,7 +37,7 @@ if __name__ == '__main__':
             raise FileNotFoundError(f'{model} does not exist')
         
         dsc_csv = pd.read_csv(join(dirname, model + '_results', 'metrics.csv'), sep=',', usecols=['dsc'])
-        runtime_csv = pd.read_csv(join(model + '_results', 'running_time.csv'), sep=',', usecols=['time'])
+        runtime_csv = pd.read_csv(join(model + '_results', 'running_time.csv'), sep=',', usecols=['Running time (mean)'])
         # print(dsc_csv.values.flatten(), runtime_csv)
         dsc_mean = np.mean(dsc_csv.values.flatten())
         dsc.append(dsc_mean)
