@@ -80,10 +80,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install osfclient numpy nibabel pandas tqdm matplotlib scipy
           osf --project u8tny fetch test_demo.tar.xz 
-          osf --project u8tny fetch checkpoints/${{ matrix.models }}
+          osf --project u8tny fetch checkpoints/${{ matrix.models }}/encoder.onnx
+          osf --project u8tny fetch checkpoints/${{ matrix.models }}/decoder.onnx
           tar -xvf test_demo.tar.xz
           rm test_demo.tar.xz
-          mv checkpoints/${{ matrix.models }} work_dir/
+          mv encoder.onnx decoder.onnx work_dir/
           mv imgs gts test_demo
       - name: Run inference on ${{ matrix.models }}
         shell: bash
