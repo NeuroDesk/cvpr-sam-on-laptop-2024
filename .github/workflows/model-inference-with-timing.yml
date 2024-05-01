@@ -136,4 +136,4 @@ jobs:
           models=${{ needs.list_models.outputs.all_models }}
           echo "${models[@]}"
           python plot_results.py -models $(echo "${models[@]}")
-          cat ./pareto_front.png >> $GITHUB_STEP_SUMMARY
+          echo "![Image](pareto_front.png)" >> "$GITHUB_STEP_SUMMARY"
