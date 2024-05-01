@@ -54,12 +54,7 @@ parser.add_argument(
     default=4,
     help='number of workers for inference with multiprocessing',
 )
-parser.add_argument(
-    '--save_overlay',
-    default=False,
-    action='store_true',
-    help='whether to save the overlay image'
-)
+
 
 args = parser.parse_args()
 
@@ -69,14 +64,8 @@ num_workers = args.num_workers
 
 makedirs(pred_save_dir, exist_ok=True)
 device = torch.device(args.device)
-if 'LiteMedSAM' in args.model_path:
-    image_size = 256
-elif 'MedSAM' in args.model_path:
-    image_size = 1024
-else:
-    image_size = 0
 
-def resize_longest_side(image, target_length=image_size):
+def resize_longest_side(image, target_length):
     """
     Resize image to target_length while keeping the aspect ratio
     Expects a numpy array with shape HxWxC in uint8 format.
@@ -89,7 +78,7 @@ def resize_longest_side(image, target_length=image_size):
 
     return cv2.resize(image, target_size, interpolation=cv2.INTER_AREA)
 
-def pad_image(image, target_size=image_size):
+def pad_image(image, target_size):
     """
     Pad image to target_size
     Expects a numpy array with shape HxWxC in uint8 format.
@@ -233,7 +222,7 @@ def onnx_decoder_inference(decoder_session, image_embedding_slice, input_points,
         # mask = (masks > 0).astype(np.uint8)
     return medsam_seg, scores
 
-def MedSAM_infer_npz_2D(img_npz_file, encoder_session, decoder_session):
+def MedSAM_infer_npz_2D(img_npz_file, encoder_session, decoder_session, image_size):
     # gc.collect()
 
     npz_name = basename(img_npz_file)
@@ -270,7 +259,7 @@ def MedSAM_infer_npz_2D(img_npz_file, encoder_session, decoder_session):
     )
 
 
-def MedSAM_infer_npz_3D(img_npz_file, encoder_session, decoder_session):
+def MedSAM_infer_npz_3D(img_npz_file, encoder_session, decoder_session, image_size):
     # gc.collect()
 
     npz_name = basename(img_npz_file)
@@ -303,7 +292,7 @@ def MedSAM_infer_npz_3D(img_npz_file, encoder_session, decoder_session):
                 img_256.max() - img_256.min(), a_min=1e-8, a_max=None
             )  # normalize to [0, 1], (H, W, 3)
             ## Pad image to 256x256
-            img_256 = pad_image(img_256)
+            img_256 = pad_image(img_256, image_size)
             
             # convert the shape to (3, H, W)
             img_256_tensor = torch.tensor(img_256).float().permute(2, 0, 1).unsqueeze(0).to(device)
@@ -319,8 +308,8 @@ def MedSAM_infer_npz_3D(img_npz_file, encoder_session, decoder_session):
                 # print("pre_seg256", pre_seg.shape, pre_seg.dtype, np.max(pre_seg))
 
                 if np.max(pre_seg) > 0:
-                    pre_seg256 = resize_longest_side(pre_seg)
-                    pre_seg256 = pad_image(pre_seg256)
+                    pre_seg256 = resize_longest_side(pre_seg, image_size)
+                    pre_seg256 = pad_image(pre_seg256, image_size)
                     box_256 = get_bbox256(pre_seg256)
                 else:
                     box_256 = resize_box_to_256(mid_slice_bbox_2d, original_size=(H, W))
@@ -339,14 +328,14 @@ def MedSAM_infer_npz_3D(img_npz_file, encoder_session, decoder_session):
                 img_3c = img_2d
             H, W, _ = img_3c.shape
 
-            img_256 = resize_longest_side(img_3c)
+            img_256 = resize_longest_side(img_3c, image_size)
             new_H, new_W = img_256.shape[:2]
 
             img_256 = (img_256 - img_256.min()) / np.clip(
                 img_256.max() - img_256.min(), a_min=1e-8, a_max=None
             )  # normalize to [0, 1], (H, W, 3)
             ## Pad image to 256x256
-            img_256 = pad_image(img_256)
+            img_256 = pad_image(img_256, image_size)
 
             img_256_tensor = torch.tensor(img_256).float().permute(2, 0, 1).unsqueeze(0).to(device)
             # get the image embedding
@@ -355,8 +344,8 @@ def MedSAM_infer_npz_3D(img_npz_file, encoder_session, decoder_session):
 
             pre_seg = segs_3d_temp[z+1, :, :]
             if np.max(pre_seg) > 0:
-                pre_seg256 = resize_longest_side(pre_seg)
-                pre_seg256 = pad_image(pre_seg256)
+                pre_seg256 = resize_longest_side(pre_seg, image_size)
+                pre_seg256 = pad_image(pre_seg256, image_size)
                 box_256 = get_bbox256(pre_seg256)
             else:
                 scale_256 = image_size / max(H, W)
@@ -389,13 +378,20 @@ if __name__ == '__main__':
         options.enable_mem_reuse = False
         encoder_session = onnxruntime.InferenceSession(encoder_onnx_path, sess_options=options, providers=['CPUExecutionProvider'])
         decoder_session = onnxruntime.InferenceSession(decoder_onnx_path, sess_options=options, providers=['CPUExecutionProvider'])
+   
+    if 'LiteMedSAM' in encoder_onnx_path:
+        image_size = 256
+    elif 'MedSAM' in encoder_onnx_path:
+        image_size = 1024
+    else:
+        image_size = 0
 
     for img_npz_file in tqdm(img_npz_files):
         start_time = time()
         if basename(img_npz_file).startswith('3D'):
-            MedSAM_infer_npz_3D(img_npz_file, encoder_session, decoder_session)
+            MedSAM_infer_npz_3D(img_npz_file, encoder_session, decoder_session, image_size)
         else:
-            MedSAM_infer_npz_2D(img_npz_file, encoder_session, decoder_session)
+            MedSAM_infer_npz_2D(img_npz_file, encoder_session, decoder_session, image_size)
         end_time = time()
         efficiency['case'].append(basename(img_npz_file))
         efficiency['time'].append(end_time - start_time)
