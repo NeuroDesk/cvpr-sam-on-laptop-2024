@@ -44,7 +44,7 @@ jobs:
           python -m pip install osfclient
 
           model_dir=$( osf --project u8tny list)
-          all_models=$( echo "$model_dir" | awk -F '/' '/osfstorage\/checkpoints/ {print $3}' | sort -u)
+          all_models=$( echo "$model_dir" | awk -F '/' '/osfstorage\/checkpoints/ {print $3}' | sort -u | tr '\n' ' ')
           echo "all_models=${all_models}"
           model_list='['
           for MODEL in $(echo "${all_models}"); do
