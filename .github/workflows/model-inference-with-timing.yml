@@ -31,6 +31,7 @@ jobs:
     runs-on: ${{ needs.select-runner.outputs.runner }}
     outputs:
       model_list: ${{ steps.set_model_list.outputs.model_list }}
+      all_models: ${{ steps.set_model_list.outputs.all_models }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,6 +55,7 @@ jobs:
           model_list+=']'
           echo "model_list=${model_list}"
           echo "model_list=${model_list}" >> $GITHUB_OUTPUT
+          echo "all_models=${all_models}" >> $GITHUB_OUTPUT
 
   infer_new_model:
     needs: [select-runner, list_models]
@@ -131,7 +133,7 @@ jobs:
 
       - name: Plot results
         run: |
-          models=${{ fromJson(needs.list_models.outputs.model_list) }}
+          models=${{ needs.list_models.outputs.all_models }}
           echo "${models[@]}"
           python plot_results.py -models $(echo "${models[@]}")
           cat ./pareto_front.png >> $GITHUB_STEP_SUMMARY
