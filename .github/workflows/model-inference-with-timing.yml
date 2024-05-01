@@ -26,9 +26,42 @@ jobs:
             echo "runner=ubuntu-22.04" >> $GITHUB_OUTPUT
           fi
 
-  infer_new_model:
+  list_models:
     needs: [select-runner]
     runs-on: ${{ needs.select-runner.outputs.runner }}
+    outputs:
+      model_list: ${{ steps.set_model_list.outputs.model_list }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' 
+      - name: Set up environment and data from osf
+        id: set_model_list
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install osfclient
+          osf --project u8tny fetch checkpoints
+          model_dir=$(find checkpoints/ -type f -name *.onnx | cut -d/ -f2)
+          all_models=$(echo $model_dir | tr ' ' '\n' | cut -d. -f1 | sort | uniq)
+
+          model_list='['
+          for MODEL in $(echo "${all_models}"); do
+            model_list+="\"${MODEL}\","
+          done
+          model_list=$(sed '$s/,$//' <<< $model_list)
+          model_list+=']'
+          echo "model_list=${model_list}"
+          echo "model_list=${model_list}" >> $GITHUB_OUTPUT
+
+  infer_new_model:
+    needs: [select-runner, list_models]
+    if: ${{ needs.list_models.outputs.model_list != '[]' }}
+    runs-on: ${{ needs.select-runner.outputs.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        models: ${{ fromJson(needs.list_models.outputs.model_list) }}
     steps:
       - name: Cleanup
         shell: bash
@@ -40,20 +73,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10' 
-      - name: Set up environment and data from osf
+      - name: Set up environment and data from osf for ${{ matrix.models }}
+        id: set_model_list
         run: |
           python -m pip install --upgrade pip
           python -m pip install osfclient numpy nibabel pandas tqdm matplotlib scipy
           osf --project u8tny fetch test_demo.tar.xz 
-          osf --project u8tny fetch checkpoints/LiteMedSAM/litemedsam_encoder.opt.quant.onnx 
-          osf --project u8tny fetch checkpoints/LiteMedSAM/lite_medsam_decoder_optimized.onnx
+          osf --project u8tny fetch checkpoints/${{ matrix.models }}
           tar -xvf test_demo.tar.xz
           rm test_demo.tar.xz
-          mv litemedsam_encoder.opt.quant.onnx lite_medsam_decoder_optimized.onnx work_dir/
+          mv checkpoints/${{ matrix.models }} work_dir/
           mv imgs gts test_demo
-          ls
-
-      - name: Run inference
+      - name: Run inference on ${{ matrix.models }}
         shell: bash
         run: |
           mkdir segs && chmod -R 777 ./*
