@@ -86,7 +86,7 @@ jobs:
           osf --project u8tny fetch checkpoints/${{ matrix.models }}/${{ matrix.models }}_decoder.onnx
           tar -xvf test_demo.tar.xz
           rm test_demo.tar.xz
-          mv encoder.onnx decoder.onnx work_dir/
+          mv ${{ matrix.models }}_encoder.onnx ${{ matrix.models }}_decoder.onnx work_dir/
           mv imgs gts test_demo
       - name: Run inference on ${{ matrix.models }}
         shell: bash
