@@ -6,9 +6,9 @@
 
 import torch
 
-from segment_anything.build_sam import sam_model_registry
+from src.litemedsam.build_sam import sam_model_registry
 # from build_sam import sam_model_registry
-from litemedsam.utils.sam_onnx import SamOnnxModel
+from src.litemedsam.utils.sam_onnx import SamOnnxModel
 
 import argparse
 import warnings
@@ -191,7 +191,7 @@ if __name__ == "__main__":
         use_stability_score=args.use_stability_score,
         return_extra_metrics=args.return_extra_metrics,
     )
-    optimize(args.output, args.output.replace(".onnx", "_optimized.onnx"))
+    optimize(args.output, args.output.replace(".onnx", ".opt.onnx"))
 
     if args.quantize_out is not None:
         assert onnxruntime_exists, "onnxruntime is required to quantize the model."

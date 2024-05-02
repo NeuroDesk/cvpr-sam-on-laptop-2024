@@ -25,7 +25,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--model-type", type=str, required=True,
-    help="In ['l0', 'l1'], Which type of sam model to export.",
+    help="In ['default', 'vit_h', 'vit_l', 'vit_b', 'vit_t']. Which type of SAM model to export.",
 )
 parser.add_argument(
     "--opset", type=int, default=17,
