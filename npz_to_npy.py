@@ -42,6 +42,9 @@ def convert_npz_to_npy(npz_name):
     npz = np.load(npz_path, allow_pickle=True, mmap_mode="r")
     imgs = npz["imgs"]
     gts = npz["gts"]
+    # only for test demo
+    # gt_file = np.load(os.path.join('/scratch/project/bollmann_lab/MedSAM_Laptop/datasets/test_demo/gts', name + '.npz'))
+    # gts = gt_file["gts"]
     if len(gts.shape) > 2: ## 3D image
         for i in range(imgs.shape[0]):
             img_i = imgs[i, :, :]

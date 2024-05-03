@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn.parameter import Parameter
 from segment_anything.modeling import Sam
-from build_sam import MedSAM_Lite
+from src.litemedsam.build_sam import MedSAM_Lite
 from safetensors import safe_open
 from safetensors.torch import save_file
 
@@ -42,8 +42,9 @@ class _LoRA_qkv(nn.Module):
         qkv = self.qkv(x)  # B,N,N,3*org_C
         new_q = self.linear_b_q(self.linear_a_q(x))
         new_v = self.linear_b_v(self.linear_a_v(x))
-        qkv[:, :, :, : self.dim] += new_q
-        qkv[:, :, :, -self.dim :] += new_v
+        # print(qkv.shape), print(new_q.shape), print(new_v.shape)
+        qkv[:, :, : self.dim] += new_q
+        qkv[:, :, -self.dim :] += new_v
         return qkv
 
 class LoRA_liteMedSam(nn.Module):

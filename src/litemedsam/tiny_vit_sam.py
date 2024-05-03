@@ -343,12 +343,15 @@ class TinyViTBlock(nn.Module):
     def forward(self, x):
         H, W = self.input_resolution
         B, L, C = x.shape
+        # print('attention x shape:', x.shape,B, L, C)
+        # print('attention input_resolution:', self.input_resolution)
         assert L == H * W, "input feature has wrong size"
         res_x = x
         if H == self.window_size and W == self.window_size:
             x = self.attn(x)
         else:
             x = x.view(B, H, W, C)
+            # print('x shape:', x.shape)
             pad_b = (self.window_size - H %
                      self.window_size) % self.window_size
             pad_r = (self.window_size - W %
@@ -443,6 +446,7 @@ class BasicLayer(nn.Module):
 
     def forward(self, x):
         for blk in self.blocks:
+            # print('blk x shape:', x.shape)
             if self.use_checkpoint:
                 x = checkpoint.checkpoint(blk, x)
             else:
@@ -607,13 +611,17 @@ class TinyViT(nn.Module):
 
     def forward_features(self, x):
         # x: (N, C, H, W)
+        # print('before patch embed x shape:', x.shape)
         x = self.patch_embed(x)
-
+        # print('before layer x shape:', x.shape)
         x = self.layers[0](x)
+        # print(self.layers[0])
+        # print('after layer x shape:', x.shape)
         start_i = 1
 
         for i in range(start_i, len(self.layers)):
             layer = self.layers[i]
+            # print('before layer x shape:', x.shape)
             x = layer(x)
 
         B, _, C = x.size()

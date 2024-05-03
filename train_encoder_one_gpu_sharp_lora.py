@@ -22,6 +22,10 @@ import torch.nn.functional as F
 
 from matplotlib import pyplot as plt
 import argparse
+from src.litemedsam.lora_litemedsam import LoRA_liteMedSam
+from src.visual_util import show_mask, show_box
+from sharp_aware import SAM_Optimizer, disable_running_stats, enable_running_stats
+
 # %%
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -64,6 +68,7 @@ parser.add_argument(
     "-lr", type=float, default=0.00005,
     help="Learning rate."
 )
+# may need a large lr for sharpness-aware optimization
 parser.add_argument(
     "-weight_decay", type=float, default=0.01,
     help="Weight decay."
@@ -84,7 +89,10 @@ parser.add_argument(
     "--sanity_check", action="store_true",
     help="Whether to do sanity check for dataloading."
 )
-
+parser.add_argument(
+    "--rank",type=int, default=4,
+    help="rank of LoRA."
+)
 args = parser.parse_args()
 # %%
 work_dir = args.work_dir
@@ -102,7 +110,7 @@ seg_loss_weight = args.seg_loss_weight
 ce_loss_weight = args.ce_loss_weight
 do_sancheck = args.sanity_check
 checkpoint = args.resume
-
+rank = args.rank
 makedirs(work_dir, exist_ok=True)
 
 # %%
@@ -113,19 +121,6 @@ os.environ["MKL_NUM_THREADS"] = "6" # export MKL_NUM_THREADS=6
 os.environ["VECLIB_MAXIMUM_THREADS"] = "4" # export VECLIB_MAXIMUM_THREADS=4
 os.environ["NUMEXPR_NUM_THREADS"] = "6" # export NUMEXPR_NUM_THREADS=6
 
-def show_mask(mask, ax, random_color=False):
-    if random_color:
-        color = np.concatenate([np.random.random(3), np.array([0.45])], axis=0)
-    else:
-        color = np.array([251/255, 252/255, 30/255, 0.45])
-    h, w = mask.shape[-2:]
-    mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
-    ax.imshow(mask_image)
-    
-def show_box(box, ax):
-    x0, y0 = box[0], box[1]
-    w, h = box[2] - box[0], box[3] - box[1]
-    ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='blue', facecolor=(0,0,0,0), lw=2))
 
 def cal_iou(result, reference):
     
@@ -288,7 +283,7 @@ class MedSAM_Lite(nn.Module):
         
     def forward(self, image, boxes):
         image_embedding = self.image_encoder(image) # (B, 256, 64, 64)
-
+        
         sparse_embeddings, dense_embeddings = self.prompt_encoder(
             points=None,
             boxes=boxes,
@@ -300,7 +295,7 @@ class MedSAM_Lite(nn.Module):
             sparse_prompt_embeddings=sparse_embeddings, # (B, 2, 256)
             dense_prompt_embeddings=dense_embeddings, # (B, 256, 64, 64)
             multimask_output=False,
-          ) # (B, 1, 256, 256)
+        ) # (B, 1, 256, 256)
 
         return low_res_masks, iou_predictions
 
@@ -380,19 +375,25 @@ if medsam_lite_checkpoint is not None:
     else:
         print(f"Pretained weights {medsam_lite_checkpoint} not found, training from scratch")
 
+# LoRA litmedsam
+# lora_litemedsam = LoRA_liteMedSam(medsam_lite_model, r=rank)
 medsam_lite_model = medsam_lite_model.to(device)
 medsam_lite_model.train()
 
 # %%
-print(f"MedSAM Lite size: {sum(p.numel() for p in medsam_lite_model.image_encoder.parameters())}")
+print(f"MedSAM Lite image encoder size: {sum(p.numel() for p in medsam_lite_model.image_encoder.parameters())}")
 # %%
-optimizer = optim.AdamW(
-    medsam_lite_model.parameters(),
-    lr=lr,
-    betas=(0.9, 0.999),
-    eps=1e-08,
-    weight_decay=weight_decay,
-)
+# optimizer = optim.AdamW(
+#     medsam_lite_model.image_encoder.parameters(),
+#     lr=lr,
+#     betas=(0.9, 0.999),
+#     eps=1e-08,
+#     weight_decay=weight_decay,
+# )
+optimizer = SAM_Optimizer(medsam_lite_model.image_encoder.parameters(), 
+                          optim.AdamW, betas=(0.9, 0.999), weight_decay=weight_decay,
+                          rho=0.05, adaptive=False, lr=lr)
+
 lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer,
     mode='min',
@@ -420,20 +421,26 @@ else:
     best_loss = 1e10
 # %%
 train_losses = []
-
-for epoch in range(start_epoch + 1, num_epochs):
-    # total_updated_params = 0
+for epoch in range(start_epoch + 1, num_epochs+1):
+    total_updated_params = 0
     epoch_loss = [1e10 for _ in range(len(train_loader))]
     epoch_start_time = time()
     pbar = tqdm(train_loader)
     for step, batch in enumerate(pbar):
         image = batch["image"]
+        # image = np.transpose(image, (0, 2, 3, 1))
         gt2D = batch["gt2D"]
+        # gt2D = np.transpose(gt2D, (0, 2, 3, 1))
         boxes = batch["bboxes"]
+        # boxes = np.transpose(boxes, (0, 2, 3, 1))
+        # print('boxes', boxes.shape, image.shape, gt2D.shape)
         optimizer.zero_grad()
         image, gt2D, boxes = image.to(device), gt2D.to(device), boxes.to(device)
-        logits_pred, iou_pred = medsam_lite_model(image, boxes)
         # freeze the prompt encoder and mask decoder
+
+        
+        logits_pred, iou_pred = medsam_lite_model(image, boxes)
+
         for name, param in medsam_lite_model.mask_decoder.named_parameters():
             param.requires_grad = False
         for name, param in medsam_lite_model.prompt_encoder.named_parameters():
@@ -448,13 +455,30 @@ for epoch in range(start_epoch + 1, num_epochs):
         loss = mask_loss + iou_loss_weight * l_iou
         epoch_loss[step] = loss.item()
         loss.backward()
-        optimizer.step()
+        # first forward-backward step
+        enable_running_stats(medsam_lite_model)
         # for name, param in medsam_lite_model.named_parameters():
         #     if param.grad is not None:
         #         print(f'Parameter {name} has been updated')
         # updated_params = sum(1 for param in medsam_lite_model.parameters() if param.grad is not None and torch.sum(param.grad) != 0)
         # total_updated_params += updated_params
         # print("Total number of parameters updated:", total_updated_params)
+        optimizer.first_step(zero_grad=True)
+
+        # second forward-backward step
+        disable_running_stats(medsam_lite_model)
+        logits_pred, iou_pred = medsam_lite_model(image, boxes)
+        l_seg = seg_loss(logits_pred, gt2D)
+        l_ce = ce_loss(logits_pred, gt2D.float())
+        #mask_loss = l_seg + l_ce
+        mask_loss = seg_loss_weight * l_seg + ce_loss_weight * l_ce
+        iou_gt = cal_iou(torch.sigmoid(logits_pred) > 0.5, gt2D.bool())
+        l_iou = iou_loss(iou_pred, iou_gt)
+        #loss = mask_loss + l_iou
+        loss = mask_loss + iou_loss_weight * l_iou
+        epoch_loss[step] = loss.item()
+        loss.backward()
+        optimizer.second_step(zero_grad=True)
         optimizer.zero_grad()
         pbar.set_description(f"Epoch {epoch} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, loss: {loss.item():.4f}")
     # break
@@ -462,26 +486,27 @@ for epoch in range(start_epoch + 1, num_epochs):
     epoch_loss_reduced = sum(epoch_loss) / len(epoch_loss)
     train_losses.append(epoch_loss_reduced)
     lr_scheduler.step(epoch_loss_reduced)
-    model_weights = medsam_lite_model.state_dict()
-    checkpoint = {
-        "model": model_weights,
-        "epoch": epoch,
-        "optimizer": optimizer.state_dict(),
-        "loss": epoch_loss_reduced,
-        "best_loss": best_loss,
-    }
-    torch.save(checkpoint, join(work_dir, "medsam_lite_latest.pth"))
-    # if epoch_loss_reduced < best_loss:
-    #     print(f"New best loss: {best_loss:.4f} -> {epoch_loss_reduced:.4f}")
-    #     best_loss = epoch_loss_reduced
-    #     checkpoint["best_loss"] = best_loss
-    #     torch.save(checkpoint, join(work_dir, "medsam_lite_best.pth"))
-
-    epoch_loss_reduced = 1e10
-    # %% plot loss
-    plt.plot(train_losses)
-    plt.title("Dice + Binary Cross Entropy + IoU Loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.savefig(join(work_dir, "train_loss.png"))
-    plt.close()
+    if epoch % 10 == 0:
+        model_weights = medsam_lite_model.state_dict()
+        checkpoint = {
+            "model": model_weights,
+            "epoch": epoch,
+            "optimizer": optimizer.state_dict(),
+            "loss": epoch_loss_reduced,
+            "best_loss": best_loss,
+        }
+        # torch.save(checkpoint, join(work_dir, "medsam_lite_encoder_test_demo_sharp.pth"))
+        # if epoch_loss_reduced < best_loss:
+        #     print(f"New best loss: {best_loss:.4f} -> {epoch_loss_reduced:.4f}")
+        #     best_loss = epoch_loss_reduced
+        #     checkpoint["best_loss"] = best_loss
+        #     torch.save(checkpoint, join(work_dir, "medsam_lite_best.pth"))
+        lora_litemedsam.save_lora_parameters(join(work_dir,f"test_demo_encoder_sharp_lora_rank{rank}_epoch{epoch}_lr{lr}.safetensors"))
+        epoch_loss_reduced = 1e10
+        # %% plot loss
+        plt.plot(train_losses)
+        plt.title("Dice + Binary Cross Entropy + IoU Loss")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.savefig(join(work_dir, f"test_demo_encoder_train_loss_epoch{epoch}_sharp_lora{rank}_lr{lr}.png"))
+        plt.close()
