@@ -118,7 +118,7 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
                 image_embedding = model.image_encoder(img_1024) # (1, 256, 64, 64)
             
             if z != z_middle:
-                pre_seg = segs[z-1, :, :]
+                pre_seg = segs_3d_temp[z-1, :, :]
                 if np.max(pre_seg) > 0:
                     box = get_bbox(pre_seg)
                 else:
@@ -160,7 +160,7 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
             with torch.no_grad():
                 image_embedding = model.image_encoder(img_1024) # (1, 256, 64, 64)
 
-            pre_seg = segs[z+1, :, :]
+            pre_seg = segs_3d_temp[z+1, :, :]
             if np.max(pre_seg) > 0:
                 box = get_bbox(pre_seg)
             else:
@@ -252,9 +252,9 @@ if __name__ == '__main__':
         gc.collect()
 
         if basename(img_npz_file).startswith('3D'):
-            segs, image_size = infer_npz_3D(model, args.model_name, img_npz_file, args.pred_save_dir, args.save_overlay, args.png_save_dir)
+            imgs, segs, image_size = infer_npz_3D(model, args.model_name, img_npz_file, args.pred_save_dir, args.save_overlay, args.png_save_dir)
         else:
-             segs, image_size = infer_npz_2D(model, args.model_name, img_npz_file, args.pred_save_dir, args.save_overlay, args.png_save_dir)
+             imgs, segs, image_size = infer_npz_2D(model, args.model_name, img_npz_file, args.pred_save_dir, args.save_overlay, args.png_save_dir)
         end_time = time()
         efficiency['case'].append(basename(img_npz_file))
         efficiency['image size'].append(image_size)
