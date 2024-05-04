@@ -134,7 +134,7 @@ jobs:
       - name: Plot results
         run: |
           python plot_results.py -models ${{ needs.list_models.outputs.all_models }}
-          IMAGE_BASE64="data:image/jpeg;base64,$(base64 -w 0 pareto_front.png)"
+          IMAGE_BASE64="data:image/png;base64,$(base64 -w 0 pareto_front.png)"
           echo $IMAGE_BASE64
           echo "<img src=\"$IMAGE_BASE64\">"
           echo "<img src=\"$IMAGE_BASE64\">" >> "$GITHUB_STEP_SUMMARY"
