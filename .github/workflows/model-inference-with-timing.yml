@@ -134,6 +134,6 @@ jobs:
       - name: Plot results
         run: |
           python plot_results.py -models ${{ needs.list_models.outputs.all_models }}
-          WORK_DIR=$(pwd)
+          image_base64=$(base64 -w 0 pareto_front.png)
           echo "$WORK_DIR/pareto_front.png"
-          echo "![Image]($WORK_DIR/pareto_front.png)" >> "$GITHUB_STEP_SUMMARY"
+          echo "![Image](data:image/png;base64,$image_base64)" >> "$GITHUB_STEP_SUMMARY"
