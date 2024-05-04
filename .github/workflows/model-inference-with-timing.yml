@@ -132,9 +132,11 @@ jobs:
         uses: actions/download-artifact@v4
 
       - name: Plot results
+        env:
+          IMAGE_BASE64: ""
         run: |
           python plot_results.py -models ${{ needs.list_models.outputs.all_models }}
           IMAGE_BASE64="data:image/png;base64,$(base64 -w 0 pareto_front.png)"
           echo $IMAGE_BASE64
-          echo ${{ env.IMAGE_BASE64 }}
-          echo '<img src="data:image/png;base64,'"${{ env.IMAGE_BASE64 }}"'" alt="Image" width="300">' >> "$GITHUB_STEP_SUMMARY"
+          echo '<img src="'"${{ env.IMAGE_BASE64 }}"'" alt="Image" width="300">' 
+          echo '<img src="'"${{ env.IMAGE_BASE64 }}"'" alt="Image" width="300">' >> "$GITHUB_STEP_SUMMARY"
