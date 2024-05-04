@@ -134,5 +134,6 @@ jobs:
       - name: Plot results
         run: |
           python plot_results.py -models ${{ needs.list_models.outputs.all_models }}
-          ls
-          echo "![Image](./pareto_front.png)" >> "$GITHUB_STEP_SUMMARY"
+          WORK_DIR=$(pwd)
+          echo "$WORK_DIR/pareto_front.png"
+          echo "![Image]($WORK_DIR/pareto_front.png)" >> "$GITHUB_STEP_SUMMARY"
