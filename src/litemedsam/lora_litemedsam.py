@@ -1,13 +1,6 @@
-from segment_anything import build_sam, SamPredictor
-from segment_anything import sam_model_registry
-
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch import Tensor
-from torch.nn.parameter import Parameter
-from segment_anything.modeling import Sam
 from src.litemedsam.build_sam import MedSAM_Lite
 from safetensors import safe_open
 from safetensors.torch import save_file
