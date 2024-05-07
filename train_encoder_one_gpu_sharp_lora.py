@@ -1,5 +1,6 @@
 # %%
 import os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:16384" #16*1024
 import random
 import monai
 from os import listdir, makedirs
@@ -481,7 +482,7 @@ for epoch in range(start_epoch + 1, num_epochs+1):
         optimizer.second_step(zero_grad=True)
         optimizer.zero_grad()
         pbar.set_description(f"Epoch {epoch} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, loss: {loss.item():.4f}")
-    break
+    # break
     epoch_end_time = time()
     epoch_loss_reduced = sum(epoch_loss) / len(epoch_loss)
     train_losses.append(epoch_loss_reduced)
@@ -495,14 +496,14 @@ for epoch in range(start_epoch + 1, num_epochs+1):
             "loss": epoch_loss_reduced,
             "best_loss": best_loss,
         }
-        # torch.save(checkpoint, join(work_dir, "medsam_lite_encoder_test_demo_sharp.pth"))
+        torch.save(checkpoint, join(work_dir, f"medsam_lite_encoder_pet_micro_sharp_epoch{epoch}.pth"))
         # if epoch_loss_reduced < best_loss:
         #     print(f"New best loss: {best_loss:.4f} -> {epoch_loss_reduced:.4f}")
         #     best_loss = epoch_loss_reduced
         #     checkpoint["best_loss"] = best_loss
         #     torch.save(checkpoint, join(work_dir, "medsam_lite_best.pth"))
-        lora_litemedsam.save_lora_parameters(join(work_dir,f"pet_micro_encoder_sharp_epoch{epoch}_lr{lr}.safetensors"))
-        epoch_loss_reduced = 1e10
+        # lora_litemedsam.save_lora_parameters(join(work_dir,f"pet_micro_encoder_sharp_epoch{epoch}_lr{lr}.safetensors"))
+        # epoch_loss_reduced = 1e10
         # %% plot loss
         plt.plot(train_losses)
         plt.title("Dice + Binary Cross Entropy + IoU Loss")
