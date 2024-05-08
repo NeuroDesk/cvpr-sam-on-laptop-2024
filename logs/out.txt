@@ -1,0 +1,2 @@
+Finetuning with pretrained weights ../checkpoints/lite_medsam.pth
+MedSAM Lite image encoder size: 5726740
