@@ -10,9 +10,8 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from typing import Tuple
-
-from litemedsam.modeling import Sam
-from litemedsam.utils.amg import calculate_stability_score
+from src.litemedsam.modeling import Sam
+from src.litemedsam.utils.amg import calculate_stability_score
 
 
 class SamOnnxModel(nn.Module):
