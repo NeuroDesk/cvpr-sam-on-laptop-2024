@@ -7,7 +7,7 @@
 #SBATCH -o logs/litemedsam_sharp_out.txt
 #SBATCH -e logs/litemedsam_sharp_error.txt
 #SBATCH --partition=gpu_cuda
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --account=a_barth
 #SBATCH --time=72:00:00
 
@@ -16,8 +16,9 @@ module load cuda
 
 source activate medsam
 
-srun python train_encoder_one_gpu_sharp_lora.py -data_root /QRISdata/Q7010/datasets/train_npy \
+srun python train_encoder_one_gpu_sharp_lora.py -data_root /QRISdata/Q7010/datasets/train_npy_pet \
     -pretrained_checkpoint /QRISdata/Q7010/checkpoints/LiteMedSAM/lite_medsam.pth \
-    -work_dir work_dir/pet_microscope \
+    -work_dir work_dir/pet_litemedsam \
     -num_epochs 50 \
-    -batch_size 256 \
+    -batch_size 32 \
+    -lr 0.05

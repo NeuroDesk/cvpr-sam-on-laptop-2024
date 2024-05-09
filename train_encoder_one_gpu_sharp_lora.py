@@ -496,7 +496,7 @@ for epoch in range(start_epoch + 1, num_epochs+1):
             "loss": epoch_loss_reduced,
             "best_loss": best_loss,
         }
-        torch.save(checkpoint, join(work_dir, f"medsam_lite_encoder_pet_micro_sharp_epoch{epoch}.pth"))
+        torch.save(checkpoint, join(work_dir, f"medsam_lite_encoder_pet_micro_sharp_epoch{epoch}_lr{lr}.pth"))
         # if epoch_loss_reduced < best_loss:
         #     print(f"New best loss: {best_loss:.4f} -> {epoch_loss_reduced:.4f}")
         #     best_loss = epoch_loss_reduced
