@@ -155,7 +155,7 @@ def build_sam_vit_t(checkpoint=None):
     mobile_sam.eval()
     if checkpoint is not None:
         with open(checkpoint, "rb") as f:
-            state_dict = torch.load(f, map_location="cpu")['model']
+            state_dict = torch.load(f, map_location="cpu")
         mobile_sam.load_state_dict(state_dict)
     return mobile_sam
 
