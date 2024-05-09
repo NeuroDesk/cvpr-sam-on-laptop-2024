@@ -25,7 +25,9 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
     # print(f'input data shape: {img_3c.shape}')
     assert np.max(img_3c)<256, f'input data should be in range [0, 255], but got {np.unique(img_3c)}'
     H, W = img_3c.shape[:2]
-    boxes = npz_data['boxes']
+    gts = npz_data['gts']
+    gts_labels = [l for l in np.unique(gts) if l != 0]
+    boxes = []
     segs = np.zeros(img_3c.shape[:2], dtype=np.uint8)
 
     if model_name == 'efficientsam':
@@ -41,7 +43,10 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
     with torch.no_grad():
         image_embedding = model.image_encoder(img_1024)
 
-    for idx, box in enumerate(boxes, start=1):
+    for idx, label in enumerate(gts_labels, start=1):
+        mask_label = np.uint8(gts == label)
+        box = get_bbox(mask_label)
+        boxes.append(box)
         if model_name == 'efficientsam':
             mask = efficientsam_infer(image_embedding, box, model, H,W)
         elif model_name == 'medsam':
@@ -62,6 +67,7 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
     if save_overlay:
         fig, ax = plt.subplots(1, 2, figsize=(10, 5))
         ax[0].imshow(img_3c)
+        ax[0].imshow(gts,alpha=0.5)
         ax[1].imshow(img_3c)
         ax[0].set_title("Image")
         ax[1].set_title("EfficientSAM Segmentation")
@@ -86,11 +92,17 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
     # print(f'input data shape: {img_3D.shape}')
     spacing = npz_data['spacing'] # not used in this demo because it treats each slice independently
     segs = np.zeros_like(img_3D, dtype=np.uint8) 
-    boxes_3D = npz_data['boxes'] # [[x_min, y_min, z_min, x_max, y_max, z_max]]
+    gts = npz_data['gts'] # [[x_min, y_min, z_min, x_max, y_max, z_max]]
+    gts_label = [l for l in np.unique(gts) if l != 0]
+    boxes_3D = []
 
-    for idx, box3D in enumerate(boxes_3D, start=1):
+    for idx, label in enumerate(gts_label, start=1):
+        mask_label = np.uint8(gts == label)
+        box3D = np.where(mask_label>0)
+        z_indice, y_indice, x_indice = box3D
         segs_3d_temp = np.zeros_like(img_3D, dtype=np.uint8) 
-        x_min, y_min, z_min, x_max, y_max, z_max = box3D
+        x_min, y_min, z_min, x_max, y_max, z_max = np.min(x_indice), np.min(y_indice), np.min(z_indice), np.max(x_indice), np.max(y_indice), np.max(z_indice)
+        boxes_3D.append(np.array([x_min, y_min, z_min, x_max, y_max, z_max]))
         assert z_min < z_max, f"z_min should be smaller than z_max, but got {z_min=} and {z_max=}"
         mid_slice_bbox_2d = np.array([x_min, y_min, x_max, y_max])
         z_middle = int((z_max - z_min)/2 + z_min)
@@ -188,6 +200,7 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
         idx = int(segs.shape[0] / 2)
         fig, ax = plt.subplots(1, 2, figsize=(10, 5))
         ax[0].imshow(img_3D[idx], cmap='gray')
+        ax[0].imshow(gts[idx],alpha=0.5)
         ax[1].imshow(img_3D[idx], cmap='gray')
         ax[0].set_title("Image")
         ax[1].set_title("MedSAM Segmentation")
