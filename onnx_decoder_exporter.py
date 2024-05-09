@@ -127,8 +127,8 @@ def run_export(
                 m.approximate = "tanh"
 
     dynamic_axes = {
-        "point_coords": {1: "num_points"},
-        "point_labels": {1: "num_points"},
+        "batched_point_coords": {1: "num_points"},
+        "batched_point_labels": {1: "num_points"},
     }
 
     embed_dim = sam.prompt_encoder.embed_dim
@@ -136,13 +136,13 @@ def run_export(
     mask_input_size = [4 * x for x in embed_size]
     dummy_inputs = {
         "image_embeddings": torch.randn(1, embed_dim, *embed_size, dtype=torch.float),
-        "point_coords": torch.randint(low=0, high=256, size=(1, 5, 2), dtype=torch.float),
-        "point_labels": torch.randint(low=0, high=4, size=(1, 5), dtype=torch.float),
+        "batched_point_coords": torch.randint(low=0, high=256, size=(1, 5, 2), dtype=torch.float),
+        "batched_point_labels": torch.randint(low=0, high=4, size=(1, 5), dtype=torch.float),
         "mask_input": torch.randn(1, 1, *mask_input_size, dtype=torch.float),
         "has_mask_input": torch.tensor([1], dtype=torch.float),
         "orig_im_size": torch.tensor([1500, 2250], dtype=torch.float),
     }
-
+    # print("dummy_inputs", dummy_inputs["image_embeddings"].shape, dummy_inputs["point_coords"].shape, dummy_inputs["point_labels"].shape, dummy_inputs["orig_im_size"].shape)
     _ = onnx_model(**dummy_inputs)
 
     output_names = ["masks", "iou_predictions", "low_res_masks"]
