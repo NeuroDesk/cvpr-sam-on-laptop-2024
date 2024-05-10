@@ -138,9 +138,7 @@ def run_export(
         "image_embeddings": torch.randn(1, embed_dim, *embed_size, dtype=torch.float),
         "batched_point_coords": torch.randint(low=0, high=256, size=(1, 5, 2), dtype=torch.float),
         "batched_point_labels": torch.randint(low=0, high=4, size=(1, 5), dtype=torch.float),
-        "mask_input": torch.randn(1, 1, *mask_input_size, dtype=torch.float),
-        "has_mask_input": torch.tensor([1], dtype=torch.float),
-        "orig_im_size": torch.tensor([1500, 2250], dtype=torch.float),
+        "orig_im_size": torch.tensor([1500, 2250], dtype=torch.int64),
     }
     # print("dummy_inputs", dummy_inputs["image_embeddings"].shape, dummy_inputs["point_coords"].shape, dummy_inputs["point_labels"].shape, dummy_inputs["orig_im_size"].shape)
     _ = onnx_model(**dummy_inputs)
@@ -205,5 +203,6 @@ if __name__ == "__main__":
             per_channel=True,
             reduce_range=True,
             weight_type=QuantType.QUInt8,
+            nodes_to_exclude=["MatMul", "Conv"]
         )
         print("Done!")

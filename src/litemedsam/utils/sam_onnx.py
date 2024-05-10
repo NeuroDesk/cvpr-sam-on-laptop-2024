@@ -123,10 +123,10 @@ class SamOnnxModel(nn.Module):
         image_embeddings: torch.Tensor,
         batched_point_coords: torch.Tensor,
         batched_point_labels: torch.Tensor,
-        mask_input: torch.Tensor,
-        has_mask_input: torch.Tensor,
         orig_im_size: torch.Tensor,
     ):
+        mask_input = torch.zeros((1, 1, 256, 256), dtype=torch.float32)
+        has_mask_input = torch.zeros(1, dtype=torch.float32)
         sparse_embedding = self._embed_points(batched_point_coords, batched_point_labels)
         dense_embedding = self._embed_masks(mask_input, has_mask_input)
 
