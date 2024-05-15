@@ -17,4 +17,3 @@ RUN python -m pip install --user -U pip && python -m pip install --user pip-tool
 COPY --chown=user:user CVPR24_LiteMedSamOnnx_infer.py setup.py predict.sh ./
 COPY --chown=user:user work_dir work_dir
 RUN pip install -e . && rm -rf $HOME/.cache
-RUN pip install memray && rm -rf $HOME/.cache

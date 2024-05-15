@@ -112,7 +112,7 @@ class SamOnnxModel(nn.Module):
         ).to(iou_preds.device)
         score = iou_preds + (num_points - 2.5) * score_reweight
         best_idx = torch.argmax(score, dim=1)
-        masks = masks[torch.arange(masks.shape[0]), best_idx, :, :].unsqueeze(1)
+        masks = masks[torch.arange(masks.shape[0]), 0, :, :].unsqueeze(1)
         iou_preds = iou_preds[torch.arange(masks.shape[0]), best_idx].unsqueeze(1)
 
         return masks, iou_preds
@@ -121,13 +121,13 @@ class SamOnnxModel(nn.Module):
     def forward(
         self,
         image_embeddings: torch.Tensor,
-        point_coords: torch.Tensor,
-        point_labels: torch.Tensor,
-        mask_input: torch.Tensor,
-        has_mask_input: torch.Tensor,
+        batched_point_coords: torch.Tensor,
+        batched_point_labels: torch.Tensor,
         orig_im_size: torch.Tensor,
     ):
-        sparse_embedding = self._embed_points(point_coords, point_labels)
+        mask_input = torch.zeros((1, 1, 256, 256), dtype=torch.float32)
+        has_mask_input = torch.zeros(1, dtype=torch.float32)
+        sparse_embedding = self._embed_points(batched_point_coords, batched_point_labels)
         dense_embedding = self._embed_masks(mask_input, has_mask_input)
 
         masks, scores = self.model.mask_decoder.predict_masks(
@@ -136,14 +136,14 @@ class SamOnnxModel(nn.Module):
             sparse_prompt_embeddings=sparse_embedding,
             dense_prompt_embeddings=dense_embedding,
         )
-
+        print("masks", masks.shape, "scores", scores.shape)
         if self.use_stability_score:
             scores = calculate_stability_score(
                 masks, self.model.mask_threshold, self.stability_score_offset
             )
 
         if self.return_single_mask:
-            masks, scores = self.select_masks(masks, scores, point_coords.shape[1])
+            masks, scores = self.select_masks(masks, scores, batched_point_coords.shape[1])
 
         upscaled_masks = self.mask_postprocessing(masks, orig_im_size)
 
