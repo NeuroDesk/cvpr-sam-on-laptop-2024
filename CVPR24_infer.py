@@ -38,7 +38,7 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay=Fa
         img_1024, newh, neww = medsam_preprocess(img_3c, 1024)
     elif model_name == 'litemedsam':
         img_1024, newh, neww = medsam_preprocess(img_3c, 256)
-
+    print(npz_name,f'img3c {img_3c.shape}, img1024{img_1024.shape}, model{model.image_encoder.img_size}')
     with torch.no_grad():
         image_embedding = model.image_encoder(img_1024)
 
@@ -309,23 +309,23 @@ if __name__ == '__main__':
             gc.collect()
 
             if basename(img_npz_file).startswith('3D') and "PET" in basename(img_npz_file):
-                model = build_sam_vit_t(args.finetuned_pet_path)
+                finetuned_model = build_sam_vit_t(args.finetuned_pet_path)
                 start_time = time()
-                imgs, segs_axial, image_size = infer_npz_3D('axial', model, args.model_name, img_npz_file, None)
-                _, segs_coronal, _ = infer_npz_3D('coronal', model, args.model_name, img_npz_file, None)
-                _, segs_sagittal, _ = infer_npz_3D('sagittal', model, args.model_name, img_npz_file, None)
+                imgs, segs_axial, image_size = infer_npz_3D('axial', finetuned_model, args.model_name, img_npz_file, None)
+                _, segs_coronal, _ = infer_npz_3D('coronal', finetuned_model, args.model_name, img_npz_file, None)
+                _, segs_sagittal, _ = infer_npz_3D('sagittal', finetuned_model, args.model_name, img_npz_file, None)
                 majority_voting(basename(img_npz_file), segs_axial, segs_coronal, segs_sagittal, args.pred_save_dir)
             elif basename(img_npz_file).startswith('3D'):
                 start_time = time()
                 imgs, segs, image_size = infer_npz_3D('axial', model, args.model_name, img_npz_file, args.pred_save_dir)
             elif basename(img_npz_file).startswith('2D') and "Microscope" in basename(img_npz_file):
-                model = build_efficient_sam_vitt(args.efficientsam_path)
+                efficientmodel = build_efficient_sam_vitt(args.efficientsam_path)
                 start_time = time()
-                imgs, segs, image_size = infer_npz_2D(model, 'efficientsam', img_npz_file, args.pred_save_dir)
+                imgs, segs, image_size = infer_npz_2D(efficientmodel, 'efficientsam', img_npz_file, args.pred_save_dir)
             elif basename(img_npz_file).startswith('2D') and "X-Ray" in basename(img_npz_file):
-                model = build_efficient_sam_vitt(args.efficientsam_path)
+                efficientmodel = build_efficient_sam_vitt(args.efficientsam_path)
                 start_time = time()
-                imgs, segs, image_size = infer_npz_2D(model, 'efficientsam', img_npz_file, args.pred_save_dir)
+                imgs, segs, image_size = infer_npz_2D(efficientmodel, 'efficientsam', img_npz_file, args.pred_save_dir)
             else:
                 start_time = time()
                 imgs, segs, image_size = infer_npz_2D(model, args.model_name, img_npz_file, args.pred_save_dir)
