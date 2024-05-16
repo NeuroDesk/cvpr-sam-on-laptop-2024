@@ -193,7 +193,7 @@ def infer_npz_3D(view, model, model_name, img_npz_file, pred_save_dir, save_over
             segs_3d_temp = update_segs_3d_temp(segs_3d_temp, mask, i, idx, view)
 
         # infer from middle slice to the z_min
-        for i in range(i_middle-1, i_min, -1):
+        for i in range(i_middle-1, i_min-1, -1):
             img_2d = get_img_2d(img_3D, i, view)
             if len(img_2d.shape) == 2:
                 img_3c = np.repeat(img_2d[:, :, None], 3, axis=-1)
