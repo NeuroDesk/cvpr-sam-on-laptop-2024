@@ -18,7 +18,7 @@ from src.efficient_sam.build_efficient_sam import build_efficient_sam_vitt, buil
 from src.segment_anything import sam_model_registry
 from src.litemedsam.build_sam import build_sam_vit_t
 
-def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, png_save_dir):
+def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay=False, png_save_dir=None):
     npz_name = basename(img_npz_file)
     npz_data = np.load(img_npz_file, 'r', allow_pickle=True) # (H, W, 3)
     img_3c = npz_data['imgs'] # (H, W, 3)
@@ -28,11 +28,12 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
     boxes = npz_data['boxes']
     segs = np.zeros(img_3c.shape[:2], dtype=np.uint8)
 
-    if model_name == 'efficientsam':
+    if model_name == 'efficientsam' or "Microscope" in npz_name or "X-Ray" in npz_name:
         img_tensor = ToTensor()(img_3c)
         img_tensor = img_tensor[None, ...]
         ## preprocessing
         img_1024 = model.preprocess(img_tensor)
+        # print(img_1024.shape, model.image_encoder.img_size)
     elif model_name == 'medsam':
         img_1024, newh, neww = medsam_preprocess(img_3c, 1024)
     elif model_name == 'litemedsam':
@@ -42,7 +43,7 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
         image_embedding = model.image_encoder(img_1024)
 
     for idx, box in enumerate(boxes, start=1):
-        if model_name == 'efficientsam':
+        if model_name == 'efficientsam' or "Microscope" in npz_name or "X-Ray" in npz_name:
             mask = efficientsam_infer(image_embedding, box, model, H,W)
         elif model_name == 'medsam':
             box1024 = resize_box_to_target(box, original_size=(H, W), target_size=1024)
@@ -79,7 +80,63 @@ def infer_npz_2D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
         plt.close()
     return img_3c, segs, img_3c.shape
 
-def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, png_save_dir):
+def select_middle_slice(box3D, view):
+    x_min, y_min, z_min, x_max, y_max, z_max = box3D
+    if view == 'axial':
+        assert z_min < z_max, f"z_min should be smaller than z_max, but got {z_min=} and {z_max=}"
+        mid_slice_bbox_2d = np.array([x_min, y_min, x_max, y_max])
+        z_middle = int((z_max - z_min)/2 + z_min)
+        return mid_slice_bbox_2d, z_middle, z_min, z_max
+    if view == 'coronal':
+        assert y_min < y_max, f"y_min should be smaller than y_max, but got {y_min=} and {y_max=}"
+        mid_slice_bbox_2d = np.array([x_min, z_min, x_max, z_max])
+        y_middle = int((y_max - y_min)/2 + y_min)
+        return mid_slice_bbox_2d, y_middle, y_min, y_max
+    if view == 'sagittal':
+        assert x_min < x_max, f"x_min should be smaller than x_max, but got {x_min=} and {x_max=}"
+        mid_slice_bbox_2d = np.array([y_min, z_min, y_max, z_max])
+        x_middle = int((x_max - x_min)/2 + x_min)
+        return mid_slice_bbox_2d, x_middle, x_min, x_max
+
+def get_img_2d(img_3D, i, view):
+    if view == 'axial':
+        return img_3D[i, :, :]
+    elif view == 'coronal':
+        return img_3D[:, i, :]
+    elif view == 'sagittal':
+        return img_3D[:, :, i]
+
+def get_pre_seg(segs_3d_temp, i, view):
+    if view == 'axial':
+        return segs_3d_temp[i, :, :]
+    elif view == 'coronal':
+        return segs_3d_temp[:, i, :]
+    elif view == 'sagittal':
+        return segs_3d_temp[:, :, i]
+
+def update_segs_3d_temp(segs_3d_temp, img_2d_seg, i, idx, view):
+    if view == 'axial':
+        segs_3d_temp[i,:,:][img_2d_seg>0] = idx
+    elif view == 'coronal':
+        segs_3d_temp[:,i, :][img_2d_seg>0] = idx
+    elif view == 'sagittal':
+        segs_3d_temp[:, :, i][img_2d_seg>0] = idx
+    return segs_3d_temp
+
+def majority_voting(npz_name, axial, coronal, sagittal,pred_save_dir):
+    # Stack the arrays along a new axis to create a 4D array
+    stacked_arrays = np.stack((axial, coronal, sagittal), axis=-1)
+
+    # Use np.apply_along_axis to apply the majority voting function along the last axis
+    result = np.apply_along_axis(lambda x: np.bincount(x).argmax(), axis=-1, arr=stacked_arrays)
+    result = result.astype(np.uint8)
+    np.savez_compressed(
+        join(pred_save_dir, npz_name),
+        segs=result,
+    )  
+
+
+def infer_npz_3D(view, model, model_name, img_npz_file, pred_save_dir, save_overlay=False, png_save_dir=None):
     npz_name = basename(img_npz_file)
     npz_data = np.load(img_npz_file, 'r', allow_pickle=True) # (H, W, 3)
     img_3D = npz_data['imgs'] # (D, H, W)
@@ -90,14 +147,11 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
 
     for idx, box3D in enumerate(boxes_3D, start=1):
         segs_3d_temp = np.zeros_like(img_3D, dtype=np.uint8) 
-        x_min, y_min, z_min, x_max, y_max, z_max = box3D
-        assert z_min < z_max, f"z_min should be smaller than z_max, but got {z_min=} and {z_max=}"
-        mid_slice_bbox_2d = np.array([x_min, y_min, x_max, y_max])
-        z_middle = int((z_max - z_min)/2 + z_min)
+        mid_slice_bbox_2d, i_middle, i_min, i_max = select_middle_slice(box3D, view)
 
         # infer from middle slice to the z_max
-        for z in range(z_middle, z_max):
-            img_2d = img_3D[z, :, :]
+        for i in range(i_middle, i_max):
+            img_2d = get_img_2d(img_3D, i, view)
             if len(img_2d.shape) == 2:
                 img_3c = np.repeat(img_2d[:, :, None], 3, axis=-1)
             else:
@@ -117,10 +171,10 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
             with torch.no_grad():
                 image_embedding = model.image_encoder(img_1024) # (1, 256, 64, 64)
             
-            if z != z_middle:
-                pre_seg = segs_3d_temp[z-1, :, :]
-                if np.max(pre_seg) > 0:
-                    box = get_bbox(pre_seg)
+            if i != i_middle:
+                pre_seg = get_pre_seg(segs_3d_temp, i-1, view)
+                if np.max(pre_seg) > 0 and ('MR' in npz_name or 'CT' in npz_name):
+                    box = get_bbox(pre_seg, bbox_shift=7)
                 else:
                     box = mid_slice_bbox_2d
             else:
@@ -136,11 +190,11 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
                 box256 = box256[None, ...]
                 mask, iou_pred = medsam_inference(model, image_embedding, box256, [newh, neww], [H, W])
 
-            segs_3d_temp[z, mask>0] = idx
-        
+            segs_3d_temp = update_segs_3d_temp(segs_3d_temp, mask, i, idx, view)
+
         # infer from middle slice to the z_min
-        for z in range(z_middle-1, z_min, -1):
-            img_2d = img_3D[z, :, :]
+        for i in range(i_middle-1, i_min, -1):
+            img_2d = get_img_2d(img_3D, i, view)
             if len(img_2d.shape) == 2:
                 img_3c = np.repeat(img_2d[:, :, None], 3, axis=-1)
             else:
@@ -160,9 +214,9 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
             with torch.no_grad():
                 image_embedding = model.image_encoder(img_1024) # (1, 256, 64, 64)
 
-            pre_seg = segs_3d_temp[z+1, :, :]
-            if np.max(pre_seg) > 0:
-                box = get_bbox(pre_seg)
+            pre_seg = segs_3d_temp[i+1, :, :]
+            if np.max(pre_seg) > 0 and ('MR' in npz_name or 'CT' in npz_name):
+                box = get_bbox(pre_seg, bbox_shift=7)
             else:
                 box = mid_slice_bbox_2d
             if model_name == 'efficientsam':
@@ -176,7 +230,8 @@ def infer_npz_3D(model, model_name, img_npz_file, pred_save_dir, save_overlay, p
                 box256 = box256[None, ...]
                 mask, iou_pred = medsam_inference(model, image_embedding, box256, [newh, neww], [H, W])
 
-            segs_3d_temp[z, mask>0] = idx
+            segs_3d_temp = update_segs_3d_temp(segs_3d_temp, mask, i, idx, view)
+
         segs[segs_3d_temp>0] = idx
     if pred_save_dir is not None:
         np.savez_compressed(
@@ -216,6 +271,8 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default="cpu", help='device to run the inference')
     parser.add_argument('--model_name', type=str, choices=['efficientsam', 'medsam','litemedsam'], help='model name to use for inference')
     parser.add_argument('--checkpoint_path', type=str, help='checkpoint file to load the model')
+    parser.add_argument('--efficientsam_path', type=str, help='checkpoint file to load the model')
+    parser.add_argument('--finetuned_pet_path', type=str, help='checkpoint file to load the model')
     args = parser.parse_args()
     
     os.makedirs(args.pred_save_dir, exist_ok=True)
@@ -248,18 +305,35 @@ if __name__ == '__main__':
     model.eval()
 
     for img_npz_file in tqdm(img_npz_files):
-        start_time = time()
-        gc.collect()
+        if not os.path.exists(os.path.join(args.pred_save_dir, basename(img_npz_file))):
+            gc.collect()
 
-        if basename(img_npz_file).startswith('3D'):
-            imgs, segs, image_size = infer_npz_3D(model, args.model_name, img_npz_file, args.pred_save_dir, args.save_overlay, args.png_save_dir)
-        else:
-             imgs, segs, image_size = infer_npz_2D(model, args.model_name, img_npz_file, args.pred_save_dir, args.save_overlay, args.png_save_dir)
-        end_time = time()
-        efficiency['case'].append(basename(img_npz_file))
-        efficiency['image size'].append(image_size)
-        efficiency['time'].append(end_time - start_time)
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(current_time, 'file name:', basename(img_npz_file), 'image size', image_size, 'time cost:', np.round(end_time - start_time, 4))
-    efficiency_df = pd.DataFrame(efficiency)
-    efficiency_df.to_csv(join(args.pred_save_dir, 'efficiency.csv'), index=False)
+            if basename(img_npz_file).startswith('3D') and "PET" in basename(img_npz_file):
+                model = build_sam_vit_t(args.finetuned_pet_path)
+                start_time = time()
+                imgs, segs_axial, image_size = infer_npz_3D('axial', model, args.model_name, img_npz_file, None)
+                _, segs_coronal, _ = infer_npz_3D('coronal', model, args.model_name, img_npz_file, None)
+                _, segs_sagittal, _ = infer_npz_3D('sagittal', model, args.model_name, img_npz_file, None)
+                majority_voting(basename(img_npz_file), segs_axial, segs_coronal, segs_sagittal, args.pred_save_dir)
+            elif basename(img_npz_file).startswith('3D'):
+                start_time = time()
+                imgs, segs, image_size = infer_npz_3D('axial', model, args.model_name, img_npz_file, args.pred_save_dir)
+            elif basename(img_npz_file).startswith('2D') and "Microscope" in basename(img_npz_file):
+                model = build_efficient_sam_vitt(args.efficientsam_path)
+                start_time = time()
+                imgs, segs, image_size = infer_npz_2D(model, 'efficientsam', img_npz_file, args.pred_save_dir)
+            elif basename(img_npz_file).startswith('2D') and "X-Ray" in basename(img_npz_file):
+                model = build_efficient_sam_vitt(args.efficientsam_path)
+                start_time = time()
+                imgs, segs, image_size = infer_npz_2D(model, 'efficientsam', img_npz_file, args.pred_save_dir)
+            else:
+                start_time = time()
+                imgs, segs, image_size = infer_npz_2D(model, args.model_name, img_npz_file, args.pred_save_dir)
+            end_time = time()
+            efficiency['case'].append(basename(img_npz_file))
+            efficiency['image size'].append(image_size)
+            efficiency['time'].append(end_time - start_time)
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(current_time, 'file name:', basename(img_npz_file), 'image size', image_size, 'time cost:', np.round(end_time - start_time, 4))
+        efficiency_df = pd.DataFrame(efficiency)
+        efficiency_df.to_csv(join(args.pred_save_dir, 'efficiency.csv'), index=False)
