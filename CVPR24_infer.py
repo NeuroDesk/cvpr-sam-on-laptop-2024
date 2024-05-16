@@ -150,6 +150,7 @@ def infer_npz_3D(view, model, model_name, img_npz_file, pred_save_dir, save_over
         mid_slice_bbox_2d, i_middle, i_min, i_max = select_middle_slice(box3D, view)
 
         # infer from middle slice to the z_max
+        i_max = min(i_max+1, img_3D.shape[0])
         for i in range(i_middle, i_max):
             img_2d = get_img_2d(img_3D, i, view)
             if len(img_2d.shape) == 2:
