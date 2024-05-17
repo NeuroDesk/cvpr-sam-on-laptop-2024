@@ -97,40 +97,6 @@ python segment_anything/utils/export_decoder_onnx.py --checkpoint work_dir/LiteM
 
 ### Model Training
 
-#### Data preprocessing
-
-1. Download the Lite-MedSAM [checkpoint](https://drive.google.com/file/d/18Zed-TUTsmr2zc5CHUWd5Tu13nb6vq6z/view?usp=sharing) and put it under the current directory.
-2. Download the [demo dataset](https://zenodo.org/records/7860267). This tutorial assumes it is unzipped it to `data/FLARE22Train/`.
-3. Run the pre-processing script to convert the dataset to `npz` format:
-
-```bash
-python pre_CT_MR.py \
-    -img_path data/FLARE22Train/images \ ## path to training images
-    -img_name_suffix _0000.nii.gz \ ## extension of training images
-    -gt_path data/FLARE22Train/labels \ ## path to training labels
-    -gt_name_suffix .nii.gz \ ## extension of training labels
-    -output_path data \ ## path to save the preprocessed data
-    -num_workers 4 \ ## number of workers for preprocessing
-    -prefix CT_Abd_ \ ## prefix of the preprocessed data
-    -modality CT \ ## modality of the preprocessed data
-    -anatomy Abd \ ## anatomy of the preprocessed data
-    -window_level 40 \ ## window level for CT
-    -window_width 400 \ ## window width for CT
-    --save_nii ## Also save the preprocessed data in nii.gz format for visual inspection in other software
-```
-
-- Split dataset: first 40 cases of the demo dataset for training, saved in `MedSAM_train`, the last 10 for testing, saved in `MedSAM_test`.
-- For detailed usage of the script, see `python pre_CT_MR.py -h`.
-
-4. Convert the training `npz` to `npy` format for training:
-
-```bash
-python npz_to_npy.py \
-    -npz_dir data/MedSAM_train \ ## path to the preprocessed npz training data
-    -npy_dir data/npy \ ## path to save the converted npy data for training
-    -num_workers 4 ## number of workers for conversion in parallel
-```
-
 #### Fine-tune pretrained Lite-MedSAM
 
 > The training pipeline requires about 10GB GPU memory with a batch size of 4
@@ -185,47 +151,25 @@ python train_multi_gpus.py \
 Alternatively, you can use the provided `train_multi_gpus.sh` script to train on multiple GPUs. To resume interrupted training from a checkpoint, add `-resume <your_work_dir>` to the command line arguments instead of the checkpoint path for multi-GPU training;
 the script will automatically find the latest checkpoint in the work directory. For additional command line arguments, see `python train_multi_gpus.py -h`.
 
-### Inference (sanity test)
-
-The inference script assumes the testing data have been converted to `npz` format.
-To run inference on the 3D CT FLARE22 dataset, run:
-
+### Inference 
+To run inference using modality specific strategy, we need three model checkpoints, example:
 ```bash
-python inference_3D.py \
-    -data_root data/npz/MedSAM_test/CT_Abd \ ## preprocessed npz data
-    -pred_save_dir ./preds/CT_Abd \
-    -medsam_lite_checkpoint_path work_dir/medsam_lite_latest.pth \
-    -num_workers 4 \
-    --save_overlay \ ## save segmentation overlay on the input image
-    -png_save_dir ./preds/CT_Abd_overlay \ ## only used when --save_overlay is set
-    --overwrite ## overwrite existing predictions, default continue from existing predictions
+python CVPR24_infer.py \
+    --data_root test_demo/imgs \
+    --pred_save_dir segs_python \
+    --save_overlay True \
+    --png_save_dir overlay_python \
+    --model_name litemedsam \
+    --checkpoint_path LiteMedSAM/lite_medsam.pth \
+    --efficientsam_path EfficientSAM/efficient_sam_vitt.pt \
+    --finetuned_pet_path LiteMedSAM_finetuned_PET_Microscopy/medsam_lite_encoder_pet_micro_sharp_epoch50_lr0.00005.pth
 ```
 
-For additional command line arguments, see `python inference_3D.py -h`.
+ 
 
-We also provide a script to run inference on the 2D images `inference_2D.py`, whose usage is the same as the 3D script.
 
-### Frequently Asked Questions (FAQ)
 
-#### What is the difference between the preprocessed npz and npy data?
 
-- The `npz` format is used to store both 2D and 3D images (focusing on the ROI), along with their corresponding ground truth masks. In the case of 3D images, spacings are also included. All these data elements are compactly packed into a single `npz` file. This format is primarily used for distributing our training and validation datasets. Notably, for the validation dataset, bounding boxes are provided in place of ground truth label masks.
-
-- In contrast, the `npy` format stores each 2D image or individual slice of a 3D image along with its label mask in separate files. This format is utilized when loading data for training purposes.
-
-#### I'm having trouble loading my trained model's checkpoint for inference. What should I do?
-
-If you encounter difficulties loading a trained model's checkpoint for inference, we recommend users first try using the `extract_weights.py` script located under `MedSAM/utils/`. This script is for extracting weights from your existing checkpoint and save them into a new checkpoint file.
-
-To use this script, execute the following command in your terminal:
-
-```bash
-python extract_weights.py \
-    -from_pth <YOUR_CHECKPOINT_PATH> \
-    -to_pth <NEW_CHECKPOINT_PATH>
-```
-
-Replace `<YOUR_CHECKPOINT_PATH>` with the path to your saved trained model checkpoint, and `<NEW_CHECKPOINT_PATH>` with the desired path for the new checkpoint file. Once you have executed this command and created the new checkpoint, it should be ready for use in inference tasks.
 
 ### Acknowledgements
 
