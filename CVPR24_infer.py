@@ -149,8 +149,15 @@ def infer_npz_3D(view, model, model_name, img_npz_file, pred_save_dir, save_over
         segs_3d_temp = np.zeros_like(img_3D, dtype=np.uint8) 
         mid_slice_bbox_2d, i_middle, i_min, i_max = select_middle_slice(box3D, view)
 
-        # infer from middle slice to the z_max
-        i_max = min(i_max+1, img_3D.shape[0])
+        # infer from middle slice to the i_max
+        if view == 'axial':
+            img_shape = img_3D.shape[0]
+        elif view == 'coronal':
+            img_shape = img_3D.shape[1]
+        else:
+            img_shape = img_3D.shape[2]
+
+        i_max = min(i_max+1, img_shape)
         for i in range(i_middle, i_max):
             img_2d = get_img_2d(img_3D, i, view)
             if len(img_2d.shape) == 2:
@@ -272,8 +279,8 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default="cpu", help='device to run the inference')
     parser.add_argument('--model_name', type=str, choices=['efficientsam', 'medsam','litemedsam'], help='model name to use for inference')
     parser.add_argument('--checkpoint_path', type=str, help='checkpoint file to load the model')
-    parser.add_argument('--efficientsam_path', type=str, help='checkpoint file to load the model')
-    parser.add_argument('--finetuned_pet_path', type=str, help='checkpoint file to load the model')
+    parser.add_argument('--efficientsam_path', type=str, help='checkpoint file to load the efficientsam model')
+    parser.add_argument('--finetuned_pet_path', type=str, help='checkpoint file to load the fine-tuned model for PET')
     args = parser.parse_args()
     
     os.makedirs(args.pred_save_dir, exist_ok=True)
