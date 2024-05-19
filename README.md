@@ -31,38 +31,46 @@ Hardware specs:
 
 https://drive.google.com/file/d/1XnrKAntAwZo3neEEMNBrKU0h4udoN64h/view
 
-## LiteMedSAM
-
-A lightweight version of MedSAM for fast training and inference. The model was trained with the following two states:
-
-- Stage 1. Distill a lightweight image encoder `TinyViT` from the MedSAM image encoder `ViT` by imposing the image embedding outputs to be the same
-- State 2. Replace the MedSAM image encoder `ViT` with `TinyViT` and fine-tune the whole pipeline
-
 ### Installation
 
 The codebase is tested with: `Ubuntu 20.04` | Python `3.10` | `CUDA 11.8` | `Pytorch 2.1.2`
 
 1. Create a virtual environment `conda create -n medsam python=3.10 -y` and activate it `conda activate medsam`
 2. Install [Pytorch 2.0](https://pytorch.org/get-started/locally/)
-3. `git clone -b LiteMedSAM https://github.com/bowang-lab/MedSAM/`
-4. Enter the MedSAM folder `cd MedSAM` and run `pip install -e .`
+3. `git clone https://github.com/NeuroDesk/cvpr-sam-on-laptop-2024.git`
+4. Enter the MedSAM folder `cd cvpr-sam-on-laptop-2024` and run `pip install -e .`
 
 ### Quick tutorial on making submissions to CVPR 2024 MedSAM on Laptop Challenge
 
 #### Sanity test
 
-- Download the LiteMedSAM checkpoint here and put it in `work_dir/LiteMedSAM`.
+- Download the LiteMedSAM, finetuned LiteMedSAM, EfficientSAM onnx models [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6618c57de65c6053727d9cbf/?zip=) and put it in `work_dir/onnx_models`. After unzipping, the directory structure should be following.
+
+```
+work_dir/
+├── checkpoints
+│   ├── EfficientSAM
+│   │   ├── efficient_sam_vitt_decoder.quant.onnx
+│   │   └── efficient_sam_vitt_encoder.quant.onnx
+│   ├── LiteMedSAM_finetuned
+│   │   ├── litemedsam_decoder.onnx
+│   │   └── litemedsam_encoder.onnx
+│   └── LiteMedSAM_preprocess
+│       ├── litemedsam_decoder.onnx
+│       └── litemedsam_encoder.onnx
+```
+
 - Download the demo data [here](https://drive.google.com/drive/folders/1t3Rs9QbfGSEv2fIFlk8vi7jc0SclD1cq?usp=sharing)
-- Run the following command for a sanity test
+- Run the following command for a sanity test using ONNX models
 
 ```bash
-python CVPR24_LiteMedSAM_infer.py -i test_demo/imgs/ -o test_demo/segs
+python CVPR24_LiteMedSamOnnx_infer.py -i test_demo/imgs/ -o test_demo/segs
 ```
 
 #### Build Docker
 
 ```bash
-docker build -f Dockerfile -t litemedsam .
+docker build -f Dockerfile -t hawken50 .
 ```
 
 > Note: don't forget the `.` in the end
@@ -70,7 +78,7 @@ docker build -f Dockerfile -t litemedsam .
 Run the docker on the testing demo images
 
 ```bash
-docker container run -m 8G --name litemedsam --rm -v $PWD/test_demo/imgs/:/workspace/inputs/ -v $PWD/test_demo/litemedsam-seg/:/workspace/outputs/ litemedsam:latest /bin/bash -c "sh predict.sh"
+docker container run -m 8G --name hawken50 --rm -v $PWD/test_demo/imgs/:/workspace/inputs/ -v $PWD/test_demo/hawken50/:/workspace/outputs/ hawken50:latest /bin/bash -c "sh predict.sh"
 ```
 
 > Note: please run `chmod -R 777 ./*` if you run into `Permission denied` error.
@@ -78,21 +86,21 @@ docker container run -m 8G --name litemedsam --rm -v $PWD/test_demo/imgs/:/works
 Save docker
 
 ```bash
-docker save litemedsam | gzip -c > litemedsam.tar.gz
+docker save hawken50 | gzip -c > hawken50.tar.gz
 ```
 
 #### Compute Metrics
 
 ```bash
-python evaluation/compute_metrics.py -s test_demo/litemedsam-seg -g test_demo/gts -csv_dir ./metrics.csv
+python evaluation/compute_metrics.py -s test_demo/hawken50 -g test_demo/gts -csv_dir ./metrics.csv
 ```
 
 #### Export ONNX model
-
-Change the argument if needed
+Download the LiteMedSAM, finetuned LiteMedSAM, EfficientSAM checkpoints [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6649998e915ae40b30e8993a/?zip=) and put it in `work_dir/checkpoints`. 
+Change the argument to export from different checkpoints
 
 ```bash
-python segment_anything/utils/export_decoder_onnx.py --checkpoint work_dir/LiteMedSAM/lite_medsam.pth --output work_dir/LiteMedSAM/lite_medsam.onnx --model-type vit_t --return-single-mask
+python onnx_decoder_exporter.py --checkpoint work_dir/checkpoints/lite_medsam.pth --output work_dir/onnx_models/lite_medsam_encoder.onnx --model-type vit_t --return-single-mask
 ```
 
 ### Model Training
@@ -151,8 +159,9 @@ python train_multi_gpus.py \
 Alternatively, you can use the provided `train_multi_gpus.sh` script to train on multiple GPUs. To resume interrupted training from a checkpoint, add `-resume <your_work_dir>` to the command line arguments instead of the checkpoint path for multi-GPU training;
 the script will automatically find the latest checkpoint in the work directory. For additional command line arguments, see `python train_multi_gpus.py -h`.
 
-### Inference 
-To run inference using modality specific strategy, we need three model checkpoints, example:
+### Inference using Pytorch model checkpoint
+To run inference using modality specific strategy, we need three model checkpoints. Download the LiteMedSAM, finetuned LiteMedSAM, EfficientSAM checkpoints [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6649998e915ae40b30e8993a/?zip=) and put it in `work_dir/checkpoints`. 
+
 ```bash
 python CVPR24_infer.py \
     --data_root test_demo/imgs \
@@ -173,4 +182,4 @@ python CVPR24_infer.py \
 
 ### Acknowledgements
 
-We thank the authors of [MobileSAM](https://github.com/ChaoningZhang/MobileSAM) and [TinyViT](https://github.com/microsoft/Cream/tree/main/TinyViT) for making their source code publicly available.
+We thank the authors of [LiteMedSAM](https://github.com/bowang-lab/MedSAM/tree/LiteMedSAM) and [EfficientSAM](https://github.com/yformer/EfficientSAM) for making their source code publicly available.
