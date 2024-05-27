@@ -5,11 +5,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
-
+from src.efficient_sam.build_efficient_sam import build_efficient_sam_vitt, build_efficient_sam_vits
 from src.litemedsam.build_sam import sam_model_registry
 # from build_sam import sam_model_registry
-from src.litemedsam.utils.sam_onnx import SamOnnxModel
-
+from src.litemedsam.utils.sam_onnx import DecoderModel
+import src.efficient_sam.efficientsam_onnx as efficientsam_onnx
 import argparse
 import warnings
 import subprocess
@@ -38,7 +38,7 @@ parser.add_argument(
     "--model-type",
     type=str,
     required=True,
-    help="In ['default', 'vit_h', 'vit_l', 'vit_b', 'vit_t']. Which type of SAM model to export.",
+    help="In ['default', 'vit_h', 'vit_l', 'vit_b', 'vit_t', 'vitt', 'vits']. Which type of SAM model to export.",
 )
 
 parser.add_argument(
@@ -112,14 +112,20 @@ def run_export(
     return_extra_metrics=False,
 ):
     print("Loading model...")
-    sam = sam_model_registry[model_type](checkpoint=checkpoint)
-
-    onnx_model = SamOnnxModel(
-        model=sam,
-        return_single_mask=return_single_mask,
-        use_stability_score=use_stability_score,
-        return_extra_metrics=return_extra_metrics,
-    )
+    if model_type == 'vits':
+        sam = build_efficient_sam_vits(checkpoint)
+        onnx_model = efficientsam_onnx.OnnxEfficientSamDecoder(model=sam)
+    if model_type == 'vitt':
+        sam = build_efficient_sam_vitt(checkpoint)
+        onnx_model = efficientsam_onnx.OnnxEfficientSamDecoder(model=sam)
+    else:
+        sam = sam_model_registry[model_type](checkpoint=checkpoint)
+        onnx_model = DecoderModel(
+            model=sam,
+            return_single_mask=return_single_mask,
+            use_stability_score=use_stability_score,
+            return_extra_metrics=return_extra_metrics,
+        )
 
     if gelu_approximate:
         for n, m in onnx_model.named_modules():

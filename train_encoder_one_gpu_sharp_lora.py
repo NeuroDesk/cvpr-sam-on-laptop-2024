@@ -94,6 +94,10 @@ parser.add_argument(
     "--rank",type=int, default=4,
     help="rank of LoRA."
 )
+parser.add_argument(
+    "--encoder_only",action="store_true",
+    help="enable when fine tnning the encoder only."
+)
 args = parser.parse_args()
 # %%
 work_dir = args.work_dir
@@ -112,6 +116,7 @@ ce_loss_weight = args.ce_loss_weight
 do_sancheck = args.sanity_check
 checkpoint = args.resume
 rank = args.rank
+encoder_only = args.encoder_only
 makedirs(work_dir, exist_ok=True)
 
 # %%
@@ -382,7 +387,7 @@ medsam_lite_model = medsam_lite_model.to(device)
 medsam_lite_model.train()
 
 # %%
-print(f"MedSAM Lite image encoder size: {sum(p.numel() for p in medsam_lite_model.image_encoder.parameters())}")
+# print(f"MedSAM Lite image encoder size: {sum(p.numel() for p in medsam_lite_model.image_encoder.parameters())}")
 # %%
 # optimizer = optim.AdamW(
 #     medsam_lite_model.image_encoder.parameters(),
@@ -441,11 +446,11 @@ for epoch in range(start_epoch + 1, num_epochs+1):
 
         
         logits_pred, iou_pred = medsam_lite_model(image, boxes)
-
-        for name, param in medsam_lite_model.mask_decoder.named_parameters():
-            param.requires_grad = False
-        for name, param in medsam_lite_model.prompt_encoder.named_parameters():
-            param.requires_grad = False
+        if encoder_only:
+            for name, param in medsam_lite_model.mask_decoder.named_parameters():
+                param.requires_grad = False
+            for name, param in medsam_lite_model.prompt_encoder.named_parameters():
+                param.requires_grad = False
         l_seg = seg_loss(logits_pred, gt2D)
         l_ce = ce_loss(logits_pred, gt2D.float())
         #mask_loss = l_seg + l_ce
@@ -496,7 +501,7 @@ for epoch in range(start_epoch + 1, num_epochs+1):
             "loss": epoch_loss_reduced,
             "best_loss": best_loss,
         }
-        torch.save(checkpoint, join(work_dir, f"medsam_lite_encoder_pet_micro_sharp_epoch{epoch}_lr{lr}.pth"))
+        torch.save(checkpoint, join(work_dir, f"medsam_lite_encoder_pet_sharp_epoch{epoch}_lr{lr}.pth"))
         # if epoch_loss_reduced < best_loss:
         #     print(f"New best loss: {best_loss:.4f} -> {epoch_loss_reduced:.4f}")
         #     best_loss = epoch_loss_reduced
@@ -509,5 +514,5 @@ for epoch in range(start_epoch + 1, num_epochs+1):
         plt.title("Dice + Binary Cross Entropy + IoU Loss")
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
-        plt.savefig(join(work_dir, f"pet_micro_encoder_train_loss_epoch{epoch}_sharp_lr{lr}.png"))
+        plt.savefig(join(work_dir, f"pet_encoder_train_loss_epoch{epoch}_sharp_lr{lr}.png"))
         plt.close()
