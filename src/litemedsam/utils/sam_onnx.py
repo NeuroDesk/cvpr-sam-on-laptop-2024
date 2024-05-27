@@ -8,13 +8,111 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+import torchvision.transforms as transforms
+from torchvision.transforms.functional import resize
+from typing import Tuple, List
 
 from typing import Tuple
 from src.litemedsam.modeling import Sam
 from src.litemedsam.utils.amg import calculate_stability_score
 
 
-class SamOnnxModel(nn.Module):
+class SamResize:
+    def __init__(self, size: int) -> None:
+        self.size = size
+
+    def __call__(self, image: torch.Tensor) -> torch.Tensor:
+        h, w, _ = image.shape
+        long_side = max(h, w)
+        if long_side != self.size:
+            return self.apply_image(image)
+        else:
+            return image
+
+    def apply_image(self, image: torch.Tensor) -> torch.Tensor:
+        """
+        Expects a torch tensor with shape HxWxC in float format.
+        """
+        h, w, _ = image.shape
+        long_side = max(h, w)
+        if long_side != self.size:
+            target_size = self.get_preprocess_shape(image.shape[0], image.shape[1], self.size)
+            x = resize(image.permute(2, 0, 1), target_size)
+            return x
+        else:
+            return image.permute(2, 0, 1)
+
+    @staticmethod
+    def get_preprocess_shape(oldh: int, oldw: int, long_side_length: int) -> Tuple[int, int]:
+        """
+        Compute the output size given input size and target long side length.
+        """
+        scale = long_side_length * 1.0 / max(oldh, oldw)
+        newh, neww = oldh * scale, oldw * scale
+        neww = int(neww + 0.5)
+        newh = int(newh + 0.5)
+        return (newh, neww)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(size={self.size})"
+
+
+class EncoderModel(nn.Module):
+    """
+    This model should not be called directly, but is used in ONNX export.
+    It combines the image encoder of Sam, with some functions modified to enable model tracing. 
+    Also supports extra options controlling what information. 
+    See the ONNX export script for details.
+    """
+
+    def __init__(
+        self,
+        model: Sam,
+        use_preprocess: bool,
+        pixel_mean: List[float] = [123.675 / 255, 116.28 / 255, 103.53 / 255],
+        pixel_std: List[float] = [58.395 / 255, 57.12 / 255, 57.375 / 255],
+    ):
+        super().__init__()
+
+        self.pixel_mean = torch.tensor(pixel_mean, dtype=torch.float)
+        self.pixel_std = torch.tensor(pixel_std, dtype=torch.float)
+
+        self.model = model
+        self.image_size = model.image_encoder.img_size
+        self.image_encoder = self.model.image_encoder
+        self.use_preprocess = use_preprocess
+        self.resize_transform = SamResize(size=1024)
+
+    @torch.no_grad()
+    def forward(self, input_image):
+        if self.use_preprocess:
+            input_image = self.preprocess(input_image)
+        image_embeddings = self.image_encoder(input_image)
+        return image_embeddings
+
+    def preprocess(self, x: torch.Tensor) -> torch.Tensor:
+        
+        # Resize & Permute to (C,H,W)
+        x = self.resize_transform(x)
+
+        # Normalize
+        x = x.float() / 255
+        x = transforms.Normalize(mean=self.pixel_mean, std=self.pixel_std)(x)
+
+        # Pad
+        h, w = x.shape[-2:]
+        th, tw = self.image_size[1], self.image_size[1]
+        assert th >= h and tw >= w
+        padh = th - h
+        padw = tw - w
+        x = F.pad(x, (0, padw, 0, padh), value=0)
+
+        # Expand
+        x = torch.unsqueeze(x, 0)
+
+        return x
+
+class DecoderModel(nn.Module):
     """
     This model should not be called directly, but is used in ONNX export.
     It combines the prompt encoder, mask decoder, and mask postprocessing of Sam,

@@ -44,11 +44,11 @@ The codebase is tested with: `Ubuntu 20.04` | Python `3.10` | `CUDA 11.8` | `Pyt
 
 #### Sanity test
 
-- Download the LiteMedSAM, finetuned LiteMedSAM, EfficientSAM onnx models [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6618c57de65c6053727d9cbf/?zip=) and put it in `work_dir/onnx_models`. After unzipping, the directory structure should be following.
+- Download the LiteMedSAM, finetuned LiteMedSAM, EfficientSAM onnx models [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6618c57de65c6053727d9cbf/?zip=) and put it in `work_dir/onnx_models`. After unzipping, the directory structure should be following. The LiteMedSAM_finetuned_PET_Mircoscope folder should be renamed as LiteMedSAM_finetuned and the LiteMedSAM folder should be renamed as LiteMedSAM_preprocess. The model files within them should be renamed as shown below.
 
 ```
 work_dir/
-├── checkpoints
+├── onnx_models
 │   ├── EfficientSAM
 │   │   ├── efficient_sam_vitt_decoder.quant.onnx
 │   │   └── efficient_sam_vitt_encoder.quant.onnx
@@ -60,7 +60,20 @@ work_dir/
 │       └── litemedsam_encoder.onnx
 ```
 
-- Download the demo data [here](https://drive.google.com/drive/folders/1t3Rs9QbfGSEv2fIFlk8vi7jc0SclD1cq?usp=sharing)
+- Download the demo data [here](https://drive.google.com/drive/folders/1t3Rs9QbfGSEv2fIFlk8vi7jc0SclD1cq?usp=sharing). The directory structure should be following.
+
+```
+test_demo/
+├── gts
+│   ├── *.npz
+│   └── *.npz
+├── imgs
+│   ├── *.npz
+│   └── *.npz
+└── segs
+    ├── *.npz
+    └── *.npz
+```
 - Run the following command for a sanity test using ONNX models
 
 ```bash
@@ -97,7 +110,7 @@ python evaluation/compute_metrics.py -s test_demo/hawken50 -g test_demo/gts -csv
 
 #### Export ONNX model
 Download the LiteMedSAM, finetuned LiteMedSAM, EfficientSAM checkpoints [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6649998e915ae40b30e8993a/?zip=) and put it in `work_dir/checkpoints`. 
-Change the argument to export from different checkpoints
+Change `--checkpoint` and `--model-type` argument to export from different checkpoints where `vit_h`, `vit_l`, `vit_b`, `vit_t` for LiteMedSAM and `vitt`, `vits` for EfficientSAM.
 
 ```bash
 python onnx_decoder_exporter.py --checkpoint work_dir/checkpoints/lite_medsam.pth --output work_dir/onnx_models/lite_medsam_encoder.onnx --model-type vit_t --return-single-mask
@@ -169,9 +182,9 @@ python CVPR24_infer.py \
     --save_overlay True \
     --png_save_dir overlay_python \
     --model_name litemedsam \
-    --checkpoint_path LiteMedSAM/lite_medsam.pth \
-    --efficientsam_path EfficientSAM/efficient_sam_vitt.pt \
-    --finetuned_pet_path LiteMedSAM_finetuned_PET_Microscopy/medsam_lite_encoder_pet_micro_sharp_epoch50_lr0.00005.pth
+    --checkpoint_path work_dir/checkpoints/lite_medsam.pth \
+    --efficientsam_path work_dir/checkpoints/efficient_sam_vitt.pt \
+    --finetuned_pet_path work_dir/checkpoints/medsam_lite_encoder_pet_micro_sharp_epoch50_lr0.00005.pth
 ```
 
  

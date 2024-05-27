@@ -38,7 +38,7 @@ parser.add_argument(
 parser.add_argument(
     '-model_path',
     type=str,
-    default="work_dir",
+    default="work_dir/onnx_models",
     help='path to the checkpoint of MedSAM-Lite',
 )
 parser.add_argument(
