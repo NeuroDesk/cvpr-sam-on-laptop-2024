@@ -274,7 +274,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='SAM inference')
     parser.add_argument('--data_root', type=str, default='data', help='root directory of the data')
     parser.add_argument('--pred_save_dir', type=str, default='segs', help='directory to save the prediction')
-    parser.add_argument('--save_overlay', type=bool, default=True, help='whether to save the overlay image')
+    parser.add_argument('--save_overlay', type=bool, default=False, help='whether to save the overlay image')
     parser.add_argument('--png_save_dir', type=str, default='overlay', help='directory to save the overlay image')
     parser.add_argument('--device', type=str, default="cpu", help='device to run the inference')
     parser.add_argument('--model_name', type=str, choices=['efficientsam', 'medsam','litemedsam'], help='model name to use for inference')
@@ -319,24 +319,31 @@ if __name__ == '__main__':
             if basename(img_npz_file).startswith('3D') and "PET" in basename(img_npz_file):
                 finetuned_model = build_sam_vit_t(args.finetuned_pet_path)
                 start_time = time()
-                imgs, segs_axial, image_size = infer_npz_3D('axial', finetuned_model, args.model_name, img_npz_file, None)
-                _, segs_coronal, _ = infer_npz_3D('coronal', finetuned_model, args.model_name, img_npz_file, None)
-                _, segs_sagittal, _ = infer_npz_3D('sagittal', finetuned_model, args.model_name, img_npz_file, None)
+                imgs, segs_axial, image_size = infer_npz_3D('axial', finetuned_model, args.model_name, img_npz_file, None,
+                                                            args.save_overlay, args.png_save_dir)
+                _, segs_coronal, _ = infer_npz_3D('coronal', finetuned_model, args.model_name, img_npz_file, None,
+                                                  args.save_overlay, args.png_save_dir)
+                _, segs_sagittal, _ = infer_npz_3D('sagittal', finetuned_model, args.model_name, img_npz_file, None,
+                                                   args.save_overlay, args.png_save_dir)
                 majority_voting(basename(img_npz_file), segs_axial, segs_coronal, segs_sagittal, args.pred_save_dir)
             elif basename(img_npz_file).startswith('3D'):
                 start_time = time()
-                imgs, segs, image_size = infer_npz_3D('axial', model, args.model_name, img_npz_file, args.pred_save_dir)
+                imgs, segs, image_size = infer_npz_3D('axial', model, args.model_name, img_npz_file, args.pred_save_dir,
+                                                      args.save_overlay, args.png_save_dir)
             elif basename(img_npz_file).startswith('2D') and "Microscope" in basename(img_npz_file):
                 efficientmodel = build_efficient_sam_vitt(args.efficientsam_path)
                 start_time = time()
-                imgs, segs, image_size = infer_npz_2D(efficientmodel, 'efficientsam', img_npz_file, args.pred_save_dir)
+                imgs, segs, image_size = infer_npz_2D(efficientmodel, 'efficientsam', img_npz_file, args.pred_save_dir,
+                                                      args.save_overlay, args.png_save_dir)
             elif basename(img_npz_file).startswith('2D') and "X-Ray" in basename(img_npz_file):
                 efficientmodel = build_efficient_sam_vitt(args.efficientsam_path)
                 start_time = time()
-                imgs, segs, image_size = infer_npz_2D(efficientmodel, 'efficientsam', img_npz_file, args.pred_save_dir)
+                imgs, segs, image_size = infer_npz_2D(efficientmodel, 'efficientsam', img_npz_file, args.pred_save_dir,
+                                                      args.save_overlay, args.png_save_dir)
             else:
                 start_time = time()
-                imgs, segs, image_size = infer_npz_2D(model, args.model_name, img_npz_file, args.pred_save_dir)
+                imgs, segs, image_size = infer_npz_2D(model, args.model_name, img_npz_file, args.pred_save_dir,
+                                                      args.save_overlay, args.png_save_dir)
             end_time = time()
             efficiency['case'].append(basename(img_npz_file))
             efficiency['image size'].append(image_size)
