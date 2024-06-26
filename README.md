@@ -1,8 +1,9 @@
-# [cvpr-sam-on-laptop-2024](https://www.codabench.org/competitions/1847/#/pages-tab)
+# [Modality-Specific Strategies for Medical Image Segmentation using Lightweight SAM Architectures](https://openreview.net/forum?id=bEQ2KJ9Cgw)  
+ 
+<img src="assets\figure1-methods.png" alt="method" width="700"/>  
 
-## Goal:
+This repository is our approach to the challenge [CVPR 2024: SEGMENT ANYTHING IN MEDICAL IMAGES ON LAPTOP](https://www.codabench.org/competitions/1847/#/pages-tab). This challenge focuses on efficiently segmenting multi-modality medical image using lightweight bounding box-based segmentation model on CPU.
 
-Lightweight bounding box-based segmentation model
 
 ## Evaluation:
 
