@@ -15,17 +15,18 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from datetime import datetime
-
+import wandb
 from src.litemedsam.modeling import MaskDecoder, PromptEncoder, TwoWayTransformer
 from src.litemedsam.tiny_vit_sam import TinyViT
 import cv2
 import torch.nn.functional as F
-
+import multiprocessing
 from matplotlib import pyplot as plt
 import argparse
 from src.litemedsam.lora_litemedsam import LoRA_liteMedSam
 from src.visual_util import show_mask, show_box
 from sharp_aware import SAM_Optimizer, disable_running_stats, enable_running_stats
+import pandas as pd
 
 # %%
 parser = argparse.ArgumentParser()
@@ -98,10 +99,14 @@ parser.add_argument(
     "--encoder_only",action="store_true",
     help="enable when fine tnning the encoder only."
 )
+parser.add_argument(
+    '--wandb', action='store_true',
+    help='Use wandb for logging')
 args = parser.parse_args()
 # %%
 work_dir = args.work_dir
 data_root = args.data_root
+info_csv = pd.read_csv(join(os.path.dirname(data_root), 'train_npz_info.csv'))
 medsam_lite_checkpoint = args.pretrained_checkpoint
 num_epochs = args.num_epochs
 batch_size = args.batch_size
@@ -118,6 +123,7 @@ checkpoint = args.resume
 rank = args.rank
 encoder_only = args.encoder_only
 makedirs(work_dir, exist_ok=True)
+is_wandb = args.wandb
 
 # %%
 torch.cuda.empty_cache()
@@ -138,36 +144,47 @@ def cal_iou(result, reference):
     return iou.unsqueeze(1)
 
 # %%
-class NpyDataset(Dataset): 
-    def __init__(self, data_root, image_size=256, bbox_shift=5, data_aug=True):
+class NpzDataset(Dataset): 
+    def __init__(self, data_root, info_csv, image_size=256, bbox_shift=5, data_aug=True):
         self.data_root = data_root
-        self.gt_path = join(data_root, 'gts')
-        self.img_path = join(data_root, 'imgs')
-        self.gt_path_files = sorted(glob(join(self.gt_path, '*.npy'), recursive=True))
-        self.gt_path_files = [
-            file for file in self.gt_path_files
-            if isfile(join(self.img_path, basename(file)))
-        ]
+        self.df = info_csv
+        self.npz_paths = glob(join(data_root, '**/**/*.npz'))
+        self.invalid_files = [f'{self.data_root}/XRay/Chest-Xray-Masks-and-Labels/XRay_Chest-Xray-Masks-and-Labels_MCUCXR_0301_1.npz',f'{self.data_root}/XRay/Chest-Xray-Masks-and-Labels/XRay_Chest-Xray-Masks-and-Labels_MCUCXR_0309_1.npz']
+        self.npz_paths  = [npz_path for npz_path in self.npz_paths if npz_path not in self.invalid_files]
+        self.npz_paths = [npz_path for npz_path in self.npz_paths if f'{data_root}/PET' not in npz_path]
+        print(f'Found {len(self.npz_paths)} npz files')
+        self.npz_2dlist = []
+        with multiprocessing.Pool() as pool:
+            for returned in tqdm(pool.imap_unordered(self.get_slice, self.npz_paths, chunksize=200), total=len(self.npz_paths)):
+                if returned is not None:
+                    self.npz_2dlist.extend(returned)
+        print(f'Training on {len(self.npz_2dlist)} 2D data')
         self.image_size = image_size
         self.target_length = image_size
         self.bbox_shift = bbox_shift
         self.data_aug = data_aug
     
     def __len__(self):
-        return len(self.gt_path_files)
+        return len(self.npz_2dlist)
 
     def __getitem__(self, index):
-        img_name = basename(self.gt_path_files[index])
-        assert img_name == basename(self.gt_path_files[index]), 'img gt name error' + self.gt_path_files[index] + self.npy_files[index]
-        img_3c = np.load(join(self.img_path, img_name), 'r', allow_pickle=True) # (H, W, 3)
+        path, slice_idx = self.npz_2dlist[index]
+        img_name = basename(path)
+        img = np.load(path)['imgs']
+        gt = np.load(path)['gts']
+        if len(gt.shape) == 3: # 3D
+            img_3c = np.repeat(img[slice_idx][..., None], 3, axis=-1) # (H, W, 3)
+            gt = gt[slice_idx] # (H, W)
+        else:
+            img_3c = img
         img_resize = self.resize_longest_side(img_3c)
         # Resizing
-        img_resize = (img_resize - img_resize.min()) / np.clip(img_resize.max() - img_resize.min(), a_min=1e-8, a_max=None) # normalize to [0, 1], (H, W, 3
+        img_resize = (img_resize - img_resize.min()) / np.clip(img_resize.max() - img_resize.min(), a_min=1e-8, a_max=None) # normalize to [0, 1]
         img_padded = self.pad_image(img_resize) # (256, 256, 3)
         # convert the shape to (3, H, W)
         img_padded = np.transpose(img_padded, (2, 0, 1)) # (3, 256, 256)
         assert np.max(img_padded)<=1.0 and np.min(img_padded)>=0.0, 'image should be normalized to [0, 1]'
-        gt = np.load(self.gt_path_files[index], 'r', allow_pickle=True) # multiple labels [0, 1,4,5...], (256,256)
+
         gt = cv2.resize(
             gt,
             (img_resize.shape[1], img_resize.shape[0]),
@@ -209,6 +226,20 @@ class NpyDataset(Dataset):
             "new_size": torch.tensor(np.array([img_resize.shape[0], img_resize.shape[1]])).long(),
             "original_size": torch.tensor(np.array([img_3c.shape[0], img_3c.shape[1]])).long()
         }
+    
+    def get_slice(self, npz_path):
+        case_info = self.df[self.df['case'] == basename(npz_path)]
+        if case_info['dimension'].size > 0:
+            dimension = case_info['dimension'].values[0]
+            # convert into tuple of integers
+            image_size = tuple(map(int, case_info['image size'].values[0][1:-1].split(', ')))
+            if dimension == '2D':
+                return [(npz_path, -1)]
+            elif dimension == '3D':
+                return [(npz_path, i) for i in range(image_size[0])]
+        else:
+            print(f'No info for {npz_path}')
+            return None
 
     def resize_longest_side(self, image):
         """
@@ -241,7 +272,7 @@ class NpyDataset(Dataset):
 
 #%% sanity test of dataset class
 if do_sancheck:
-    tr_dataset = NpyDataset(data_root, data_aug=True)
+    tr_dataset = NpzDataset(data_root, info_csv, data_aug=True)
     tr_dataloader = DataLoader(tr_dataset, batch_size=8, shuffle=True)
     for step, batch in enumerate(tr_dataloader):
         # show the example
@@ -410,8 +441,13 @@ lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 seg_loss = monai.losses.DiceLoss(sigmoid=True, squared_pred=True, reduction='mean')
 ce_loss = nn.BCEWithLogitsLoss(reduction='mean')
 iou_loss = nn.MSELoss(reduction='mean')
+
+if is_wandb:
+    wandb.init(project='MedSAM_on_Laptop_2024',
+        group='litemedsam_encoder',
+        name=f'{os.path.basename(data_root)}_epochs{num_epochs}_lr{lr}',)
 # %%
-train_dataset = NpyDataset(data_root=data_root, data_aug=True)
+train_dataset = NpzDataset(data_root=data_root, info_csv=info_csv, data_aug=True)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
 
 if checkpoint and isfile(checkpoint):
@@ -439,7 +475,6 @@ for epoch in range(start_epoch + 1, num_epochs+1):
         # gt2D = np.transpose(gt2D, (0, 2, 3, 1))
         boxes = batch["bboxes"]
         # boxes = np.transpose(boxes, (0, 2, 3, 1))
-        # print('boxes', boxes.shape, image.shape, gt2D.shape)
         optimizer.zero_grad()
         image, gt2D, boxes = image.to(device), gt2D.to(device), boxes.to(device)
         # freeze the prompt encoder and mask decoder
@@ -460,6 +495,8 @@ for epoch in range(start_epoch + 1, num_epochs+1):
         #loss = mask_loss + l_iou
         loss = mask_loss + iou_loss_weight * l_iou
         epoch_loss[step] = loss.item()
+        if is_wandb:
+            wandb.log({"first step loss per batch": loss.item()})
         loss.backward()
         # first forward-backward step
         enable_running_stats(medsam_lite_model)
@@ -483,6 +520,8 @@ for epoch in range(start_epoch + 1, num_epochs+1):
         #loss = mask_loss + l_iou
         loss = mask_loss + iou_loss_weight * l_iou
         epoch_loss[step] = loss.item()
+        if is_wandb:
+            wandb.log({"second step loss per batch": loss.item()})
         loss.backward()
         optimizer.second_step(zero_grad=True)
         optimizer.zero_grad()
@@ -490,29 +529,33 @@ for epoch in range(start_epoch + 1, num_epochs+1):
     # break
     epoch_end_time = time()
     epoch_loss_reduced = sum(epoch_loss) / len(epoch_loss)
+    if is_wandb:
+        wandb.log({"epoch loss": epoch_loss_reduced})
+        wandb.log({'learning rate per epoch': optimizer.param_groups[0]['lr']})
     train_losses.append(epoch_loss_reduced)
     lr_scheduler.step(epoch_loss_reduced)
-    if epoch % 10 == 0:
-        model_weights = medsam_lite_model.state_dict()
-        checkpoint = {
-            "model": model_weights,
-            "epoch": epoch,
-            "optimizer": optimizer.state_dict(),
-            "loss": epoch_loss_reduced,
-            "best_loss": best_loss,
-        }
-        torch.save(checkpoint, join(work_dir, f"medsam_lite_encoder_pet_sharp_epoch{epoch}_lr{lr}.pth"))
-        # if epoch_loss_reduced < best_loss:
-        #     print(f"New best loss: {best_loss:.4f} -> {epoch_loss_reduced:.4f}")
-        #     best_loss = epoch_loss_reduced
-        #     checkpoint["best_loss"] = best_loss
-        #     torch.save(checkpoint, join(work_dir, "medsam_lite_best.pth"))
-        # lora_litemedsam.save_lora_parameters(join(work_dir,f"pet_micro_encoder_sharp_epoch{epoch}_lr{lr}.safetensors"))
-        # epoch_loss_reduced = 1e10
-        # %% plot loss
-        plt.plot(train_losses)
-        plt.title("Dice + Binary Cross Entropy + IoU Loss")
-        plt.xlabel("Epoch")
-        plt.ylabel("Loss")
-        plt.savefig(join(work_dir, f"pet_encoder_train_loss_epoch{epoch}_sharp_lr{lr}.png"))
-        plt.close()
+
+    model_weights = medsam_lite_model.state_dict()
+    torch.save(model_weights, join(work_dir, f"medsam_lite_encoder_sharp_epoch{epoch}_lr{lr}.pth"))
+    checkpoint = {
+        "model": model_weights,
+        "epoch": epoch,
+        "optimizer": optimizer.state_dict(),
+        "loss": epoch_loss_reduced,
+        "best_loss": best_loss,
+    }
+    torch.save(checkpoint, join(work_dir, f"medsam_lite_encoder_sharp_epoch{epoch}_lr{lr}_traindict.pth"))
+    # if epoch_loss_reduced < best_loss:
+    #     print(f"New best loss: {best_loss:.4f} -> {epoch_loss_reduced:.4f}")
+    #     best_loss = epoch_loss_reduced
+    #     checkpoint["best_loss"] = best_loss
+    #     torch.save(checkpoint, join(work_dir, "medsam_lite_best.pth"))
+    # lora_litemedsam.save_lora_parameters(join(work_dir,f"pet_micro_encoder_sharp_epoch{epoch}_lr{lr}.safetensors"))
+    # epoch_loss_reduced = 1e10
+    # %% plot loss
+    plt.plot(train_losses)
+    plt.title("Dice + Binary Cross Entropy + IoU Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.savefig(join(work_dir, f"encoder_train_loss_epoch{epoch}_sharp_lr{lr}.png"))
+    plt.close()
