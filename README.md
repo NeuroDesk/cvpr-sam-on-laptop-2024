@@ -75,16 +75,21 @@ test_demo/
     ├── *.npz
     └── *.npz
 ```
-- Run the following command for a sanity test using ONNX models
+- Run the following command to compile the C++ code and run the inference on the data.
 
-```bash
-python CVPR24_LiteMedSamOnnx_infer.py -i test_demo/imgs/ -o test_demo/segs
+```
+cd cpp
+cmake -S . -B build -D CMAKE_BUILD_TYPE=Release
+cmake --build build --verbose -j$(nproc)
+./main litemedsam-encoder.xml litemedsam-decoder.xml efficientvit-encoder.xml efficientvit-decoder.xml /workspace/outputs/ /workspace/inputs/ /workspace/outputs/
 ```
 
 #### Build Docker
 
 ```bash
-docker build -f Dockerfile -t hawken50 .
+docker build -f Dockerfile.cpp -t hawken50.fat .
+slim build --target hawken50.fat --tag hawken50 --http-probe=false --include-workdir --mount $PWD/test_demo/test_input/:/workspace/inputs/ --mount $PWD/test_demo/segs/:/workspace/outputs/ --exec "sh predict.sh"
+docker save hawken50 | gzip -c > hawken50.tar.gz
 ```
 
 > Note: don't forget the `.` in the end
@@ -115,6 +120,16 @@ Change `--checkpoint` and `--model-type` argument to export from different check
 
 ```bash
 python onnx_decoder_exporter.py --checkpoint work_dir/checkpoints/lite_medsam.pth --output work_dir/onnx_models/lite_medsam_encoder.onnx --model-type vit_t --return-single-mask
+```
+
+#### Export OpenVINO model
+
+To export OpenVINO model, you need to install OpenVINO toolkit. Follow the instructions [here](https://docs.openvino.ai/2022.3/openvino_docs_install_guides_overview.html) to install OpenVINO toolkit.
+
+Once you have the exported ONNX model from the previous step, you can convert it to OpenVINO model using the following command.
+
+```bash
+ovc lite_medsam_encoder.onnx
 ```
 
 ### Inference using Pytorch model checkpoint
