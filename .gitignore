@@ -11,6 +11,9 @@
 *.png
 *.tar.gz
 data/
+**/**/*.html
+**/**/*.bin
+**/**/*.onnx
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
