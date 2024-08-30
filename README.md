@@ -117,62 +117,6 @@ Change `--checkpoint` and `--model-type` argument to export from different check
 python onnx_decoder_exporter.py --checkpoint work_dir/checkpoints/lite_medsam.pth --output work_dir/onnx_models/lite_medsam_encoder.onnx --model-type vit_t --return-single-mask
 ```
 
-### Model Training
-
-#### Fine-tune pretrained Lite-MedSAM
-
-> The training pipeline requires about 10GB GPU memory with a batch size of 4
-
-##### Single GPU
-
-To train Lite-MedSAM on a single GPU, run:
-
-```bash
-python train_one_gpu.py \
-    -data_root data/MedSAM_train \
-    -pretrained_checkpoint lite_medsam.pth \
-    -work_dir work_dir \
-    -num_workers 4 \
-    -batch_size 4 \
-    -num_epochs 10
-```
-
-To resume interrupted training from a checkpoint, run:
-
-```bash
-python train_one_gpu.py \
-    -data_root data/MedSAM_train \
-    -resume work_dir/medsam_lite_latest.pth \
-    -work_dir work_dir \
-    -num_workers 4 \
-    -batch_size 4 \
-    -num_epochs 10
-```
-
-For additional command line arguments, see `python train_one_gpu.py -h`.
-
-##### Multi-GPU
-
-To fine-tune Lite-MedSAM on multiple GPUs, run:
-
-```bash
-python train_multi_gpus.py \
-    -i data/npy \ ## path to the training dataset
-    -task_name MedSAM-Lite-Box \
-    -pretrained_checkpoint lite_medsam.pth \
-    -work_dir ./work_dir_ddp \
-    -batch_size 16 \
-    -num_workers 8 \
-    -lr 0.0005 \
-    --data_aug \ ## use data augmentation
-    -world_size <WORLD_SIZE> \ ## Total number of GPUs will be used
-    -node_rank 0 \ ## if training on a single machine, set to 0
-    -init_method tcp://<MASTER_ADDR>:<MASTER_PORT>
-```
-
-Alternatively, you can use the provided `train_multi_gpus.sh` script to train on multiple GPUs. To resume interrupted training from a checkpoint, add `-resume <your_work_dir>` to the command line arguments instead of the checkpoint path for multi-GPU training;
-the script will automatically find the latest checkpoint in the work directory. For additional command line arguments, see `python train_multi_gpus.py -h`.
-
 ### Inference using Pytorch model checkpoint
 To run inference using modality specific strategy, we need three model checkpoints. Download the LiteMedSAM, finetuned LiteMedSAM, EfficientSAM checkpoints [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6649998e915ae40b30e8993a/?zip=) and put it in `work_dir/checkpoints`. 
 
