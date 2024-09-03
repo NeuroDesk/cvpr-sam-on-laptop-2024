@@ -14,24 +14,17 @@ Segmentation accuracy metrics:
 
 Segmentation efficiency metrics:
 
-- Running time (s)
+- Running time (s)  
 
-## Method:
-
-Pretrained models and publicly available datasets (registered before April 15, 2024)
-
-- Pretrain Models other than SAM: https://paperswithcode.com/sota/interactive-segmentation-on-grabcut?p=reviving-iterative-training-with-mask
 
 Hardware specs:
 
 - CPU: Intel® Xeon(R) W-2133 @ 3.60GHz RAM: 8G
 - Docker version 20.10.13
 
-## Challeng rule agreement consent
+## Inference:
 
-https://drive.google.com/file/d/1XnrKAntAwZo3neEEMNBrKU0h4udoN64h/view
-
-### Installation
+#### Installation
 
 The codebase is tested with: `Ubuntu 20.04` | Python `3.10` | `CUDA 11.8` | `Pytorch 2.1.2`
 
@@ -40,7 +33,6 @@ The codebase is tested with: `Ubuntu 20.04` | Python `3.10` | `CUDA 11.8` | `Pyt
 3. `git clone https://github.com/NeuroDesk/cvpr-sam-on-laptop-2024.git`
 4. Enter the MedSAM folder `cd cvpr-sam-on-laptop-2024` and run `pip install -e .`
 
-### Quick tutorial on making submissions to CVPR 2024 MedSAM on Laptop Challenge
 
 #### Sanity test
 
@@ -73,7 +65,9 @@ test_demo/
 └── segs
     ├── *.npz
     └── *.npz
-```
+```  
+#### C++ Inference  
+
 - Run the following command to compile the C++ code and run the inference on the data.
 
 ```
@@ -132,7 +126,9 @@ ovc lite_medsam_encoder.onnx
 ```
 
  
+### Challeng rule agreement consent
 
+https://drive.google.com/file/d/1XnrKAntAwZo3neEEMNBrKU0h4udoN64h/view
 
 
 
