@@ -1,6 +1,6 @@
 # [Modality-Specific Strategies for Medical Image Segmentation using Lightweight SAM Architectures](https://openreview.net/forum?id=bEQ2KJ9Cgw)  
  
-<img src="assets\figure1-methods.png" alt="method" width="700"/>  
+<img src="assets\figure1-cvpr24_challenge_methods_post.png" alt="method" width="700"/>  
 
 This repository is our approach to the challenge [CVPR 2024: SEGMENT ANYTHING IN MEDICAL IMAGES ON LAPTOP](https://www.codabench.org/competitions/1847/#/pages-tab). This challenge focuses on efficiently segmenting multi-modality medical image using lightweight bounding box-based segmentation model on CPU.
 
@@ -21,7 +21,6 @@ Segmentation efficiency metrics:
 Pretrained models and publicly available datasets (registered before April 15, 2024)
 
 - Pretrain Models other than SAM: https://paperswithcode.com/sota/interactive-segmentation-on-grabcut?p=reviving-iterative-training-with-mask
-- Public Dataset: ?
 
 Hardware specs:
 
@@ -130,21 +129,6 @@ Once you have the exported ONNX model from the previous step, you can convert it
 
 ```bash
 ovc lite_medsam_encoder.onnx
-```
-
-### Inference using Pytorch model checkpoint
-To run inference using modality specific strategy, we need three model checkpoints. Download the LiteMedSAM, finetuned LiteMedSAM, EfficientSAM checkpoints [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6649998e915ae40b30e8993a/?zip=) and put it in `work_dir/checkpoints`. 
-
-```bash
-python CVPR24_infer.py \
-    --data_root test_demo/imgs \
-    --pred_save_dir segs_python \
-    --save_overlay True \
-    --png_save_dir overlay_python \
-    --model_name litemedsam \
-    --checkpoint_path work_dir/checkpoints/lite_medsam.pth \
-    --efficientsam_path work_dir/checkpoints/efficient_sam_vitt.pt \
-    --finetuned_pet_path work_dir/checkpoints/medsam_lite_encoder_pet_micro_sharp_epoch50_lr0.00005.pth
 ```
 
  
