@@ -24,32 +24,31 @@ Hardware specs:
 
 ## Inference:
 
-#### Installation
+https://drive.google.com/file/d/1XnrKAntAwZo3neEEMNBrKU0h4udoN64h/view
 
-The codebase is tested with: `Ubuntu 20.04` | Python `3.10` | `CUDA 11.8` | `Pytorch 2.1.2`
+## Usage
+### Sanity test
 
-1. Create a virtual environment `conda create -n medsam python=3.10 -y` and activate it `conda activate medsam`
-2. Install [Pytorch 2.0](https://pytorch.org/get-started/locally/)
-3. `git clone https://github.com/NeuroDesk/cvpr-sam-on-laptop-2024.git`
-4. Enter the MedSAM folder `cd cvpr-sam-on-laptop-2024` and run `pip install -e .`
-
-
-#### Sanity test
-
-- Download the LiteMedSAM, finetuned LiteMedSAM, EfficientSAM onnx models [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6618c57de65c6053727d9cbf/?zip=) and put it in `work_dir/onnx_models`. After unzipping, the directory structure should be following. The LiteMedSAM_finetuned_PET_Mircoscope folder should be renamed as LiteMedSAM_finetuned and the LiteMedSAM folder should be renamed as LiteMedSAM_preprocess. The model files within them should be renamed as shown below.
+- Download the LiteMedSAM, EfficientViT, EfficientSAM openvino models [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/66d16fafba93ac32fd8c90cc/?zip=) and put it in `work_dir/openvino_models`. After unzipping, the directory structure should be following. The model files within them should be renamed as shown below.
 
 ```
 work_dir/
-├── onnx_models
-│   ├── EfficientSAM
-│   │   ├── efficient_sam_vitt_decoder.quant.onnx
-│   │   └── efficient_sam_vitt_encoder.quant.onnx
-│   ├── LiteMedSAM_finetuned
-│   │   ├── litemedsam_decoder.onnx
-│   │   └── litemedsam_encoder.onnx
-│   └── LiteMedSAM_preprocess
-│       ├── litemedsam_decoder.onnx
-│       └── litemedsam_encoder.onnx
+├── openvino_models
+│   ├── efficientsam
+│   │   ├── decoder.bin
+│   │   ├── decoder.xml
+│   │   ├── encoder.bin
+│   │   └── encoder.xml
+│   ├── efficientvit
+│   │   ├── decoder.bin
+│   │   ├── decoder.xml
+│   │   ├── encoder.bin
+│   │   └── encoder.xml
+│   ├── litemedsam
+│   │   ├── decoder.bin
+│   │   ├── decoder.xml
+│   │   ├── encoder.bin
+│   │   └── encoder.xml
 ```
 
 - Download the demo data [here](https://drive.google.com/drive/folders/1t3Rs9QbfGSEv2fIFlk8vi7jc0SclD1cq?usp=sharing). The directory structure should be following.
@@ -74,10 +73,11 @@ test_demo/
 cd cpp
 cmake -S . -B build -D CMAKE_BUILD_TYPE=Release
 cmake --build build --verbose -j$(nproc)
-./main litemedsam-encoder.xml litemedsam-decoder.xml efficientvit-encoder.xml efficientvit-decoder.xml /workspace/outputs/ /workspace/inputs/ /workspace/outputs/
+cd build
+./main ../../work_dir/openvino_models/litemedsam/encoder.xml ../../work_dir/openvino_models/litemedsam/decoder.xml ../../work_dir/openvino_models/efficientvit/encoder.xml ../../work_dir/openvino_models/efficientvit/decoder.xml ../../test_demo/imgs ../../test_demo/imgs ../../test_demo/imgs
 ```
 
-#### Build Docker
+### Build Docker
 
 ```bash
 docker build -f Dockerfile.cpp -t hawken50.fat .
@@ -107,15 +107,18 @@ docker save hawken50 | gzip -c > hawken50.tar.gz
 python evaluation/compute_metrics.py -s test_demo/hawken50 -g test_demo/gts -csv_dir ./metrics.csv
 ```
 
-#### Export ONNX model
-Download the LiteMedSAM, finetuned LiteMedSAM, EfficientSAM checkpoints [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6649998e915ae40b30e8993a/?zip=) and put it in `work_dir/checkpoints`. 
+### Export OpenVINO model
+
+**Step 1.** Export ONNX model
+
+Download the LiteMedSAM, EfficientViT, EfficientSAM checkpoints [here](https://files.au-1.osf.io/v1/resources/u8tny/providers/osfstorage/6649998e915ae40b30e8993a/?zip=) and put it in `work_dir/checkpoints`. 
 Change `--checkpoint` and `--model-type` argument to export from different checkpoints where `vit_h`, `vit_l`, `vit_b`, `vit_t` for LiteMedSAM and `vitt`, `vits` for EfficientSAM.
 
 ```bash
 python onnx_decoder_exporter.py --checkpoint work_dir/checkpoints/lite_medsam.pth --output work_dir/onnx_models/lite_medsam_encoder.onnx --model-type vit_t --return-single-mask
 ```
 
-#### Export OpenVINO model
+**Step 2.** Export OpenVINO model
 
 To export OpenVINO model, you need to install OpenVINO toolkit. Follow the instructions [here](https://docs.openvino.ai/2022.3/openvino_docs_install_guides_overview.html) to install OpenVINO toolkit.
 
@@ -125,14 +128,6 @@ Once you have the exported ONNX model from the previous step, you can convert it
 ovc lite_medsam_encoder.onnx
 ```
 
- 
-### Challeng rule agreement consent
-
-https://drive.google.com/file/d/1XnrKAntAwZo3neEEMNBrKU0h4udoN64h/view
-
-
-
-
-### Acknowledgements
+## Acknowledgements
 
 We thank the authors of [LiteMedSAM](https://github.com/bowang-lab/MedSAM/tree/LiteMedSAM) and [EfficientSAM](https://github.com/yformer/EfficientSAM) for making their source code publicly available.
