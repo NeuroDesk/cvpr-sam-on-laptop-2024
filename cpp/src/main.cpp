@@ -4,13 +4,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
-#include <future>
-#include <omp.h>
-#include <condition_variable>
 #include <fstream>
-#include <map>
-#include <memory>
-#include <mutex>
 
 #include <opencv2/opencv.hpp>
 #include <openvino/openvino.hpp>
@@ -81,14 +75,14 @@ void majority_voting(std::string seg_file, xt::xtensor<uint16_t, 3>& axial, xt::
   xt::dump_npz(seg_file, "segs", result, true);
 }
 
-xt::xtensor<float, 2> get_bbox(xt::xtensor<float, 2>& mask) {
+xt::xtensor<float, 1> get_bbox(xt::xtensor<float, 2>& mask) {
   auto indices = xt::where(mask > 0);
   auto y_indices = indices[0], x_indices = indices[1];
   auto x_min = *std::min_element(x_indices.begin(), x_indices.end());
   auto x_max = *std::max_element(x_indices.begin(), x_indices.end());
   auto y_min = *std::min_element(y_indices.begin(), y_indices.end());
   auto y_max = *std::max_element(y_indices.begin(), y_indices.end());
-  return {{(float)x_min, (float)y_min}, {(float)x_max, (float)y_max}};
+  return {(float)x_min, (float)y_min, (float)x_max, (float)y_max};
 }
 
 template <class T>
@@ -544,7 +538,7 @@ xt::xtensor<uint16_t, 3> infer_3d(std::string img_file, std::string seg_file, En
       return cached_embeddings.get(z);
     }
     auto img = encoder.preprocess_3D(original_img, z, view, encoder_input_size);
-    std::cout << "get_embedding " << view << " " << xt::adapt(img.shape()) << std::endl;
+    // std::cout << "get_embedding " << view << " " << xt::adapt(img.shape()) << std::endl;
     ov::Tensor input_tensor(ov::element::f32, input_shape, img.data());
     ov::Tensor embedding_tensor = encoder.encode_image(input_tensor);
     cached_embeddings.put(z, embedding_tensor);
